@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>حاضر — HADIR (v7)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="assets/hadir.png" />
+  <style>
+    :root{--header-h:100px;--brand:#5f7f71;--brand-600:#4a6458;--brand-700:#3d564b;--brand-300:#7fa193;--bg:#f5f7f6;--fg:#0f172a;--muted:#6b7280;--border:#e5e7eb;--card:#fff;--ok:#16a34a;--warn:#f59e0b;--err:#dc2626;--r:16px;--shadow:0 8px 24px rgba(0,0,0,.06)}
+    *{box-sizing:border-box}body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic",Tahoma,Arial;color:var(--fg);background:var(--bg)}
+    .app{max-width:1280px;margin:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
+    header.header{background:linear-gradient(180deg,var(--brand),var(--brand-600));color:#fff;border-radius:16px;box-shadow:var(--shadow);padding:8px 20px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;min-height:var(--header-h)}
+    .brand-img{height:var(--header-h);background:#fff;border-radius:12px}
+    nav.tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tab{background:transparent;color:#fff;border:2px solid var(--brand-700);padding:9px 14px;border-radius:12px;cursor:pointer;font-weight:700}
+    .tab[aria-selected="true"]{background:var(--brand-300);border-color:var(--brand-300)}
+    main{display:grid;grid-template-columns:1.25fr .75fr;gap:16px}
+    .card{background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}
+    .card .content{padding:16px}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    input,select{width:100%;padding:12px;border:1px solid var(--border);border-radius:12px}
+    .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:700}
+    .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
+    .hint{color:var(--muted)}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+    .history{max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:12px}
+    .history table{width:100%;border-collapse:collapse}
+    .history th,.history td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:.95rem}
+    .student-card{border:1px dashed var(--border);border-radius:14px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .ok-bg{background:#e7f7eb}.warn-bg{background:#fff5e6}.err-bg{background:#fde8e8}
+    .list{max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:12px}
+    .list-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border)}
+    .list-item:last-child{border-bottom:none}
+    .hl-green{background:#e6f7ee}.hl-red{background:#fde8e8}
+    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:#111;color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .2s}
+    .toast.show{opacity:.94}
+  </style>
+  <script src="./lib/sql-wasm.js"></script>
+  <script src="./lib/JsBarcode.all.min.js"></script>
+  <script src="./lib/qrcode.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div style="display:flex;align-items:center;gap:16px">
+        <img class="brand-img" src="assets/hadir.png"/>
+        <nav class="tabs" id="tabs">
+          <a href="./kiosk.html" target="_blank"
+   style="color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.25);
+          padding:8px 12px;border-radius:10px;display:inline-block;">
+  واجهة الطلاب
+</a>
+
+          <button class="tab" data-tab="attendance" aria-selected="true">تسجيل الحضور</button>
+          <button class="tab" data-tab="students" aria-selected="false">الطلاب</button>
+          <button class="tab" data-tab="reports" aria-selected="false">التقارير</button>
+          <button class="tab" data-tab="import" aria-selected="false">استيراد</button>
+          <button class="tab" data-tab="codes" aria-selected="false">الأكواد</button>
+          <button class="tab" data-tab="backup" aria-selected="false">نسخ احتياطي</button>
+          <button class="tab" data-tab="settings" aria-selected="false">الإعدادات</button>
+        </nav>
+      </div>
+      <div class="school">
+        <h1 id="schoolName" class="school-name">مدرسة الأمير سعود بن عبدالله بن جلوي المتوسطة</h1>
+        <div id="principalName" class="principal">مدير المدرسة: حسام بن محمد يار</div>
+      </div>
+    </header>
+
+    <main>
+      <section class="card"><div class="content">
+        <section class="panel" data-panel="attendance">
+          <h2 class="row" style="justify-content:space-between"><span>تسجيل الحضور</span><span class="hint" id="attnClock">—</span></h2>
+          <div id="attnMount">…</div>
+        </section>
+        <section class="panel" data-panel="students" hidden><h2>الطلاب</h2><div id="studentsMount">…</div></section>
+        <section class="panel" data-panel="reports" hidden><h2>التقارير</h2><div id="reportsMount">…</div></section>
+        <section class="panel" data-panel="import" hidden><h2>استيراد</h2><div id="importMount">…</div></section>
+        <section class="panel" data-panel="codes" hidden><h2>الأكواد</h2><div id="codesMount">…</div></section>
+        <section class="panel" data-panel="backup" hidden><h2>نسخ احتياطي</h2><div id="backupMount">…</div></section>
+        <section class="panel" data-panel="settings" hidden><h2>الإعدادات</h2><div id="settingsMount">…</div></section>
+      </div></section>
+      <aside class="card"><div class="content">
+        <h2>ملخص الحالة</h2>
+        <div class="grid-3">
+          <div><div class="hint">عدد الطلاب</div><div id="statStudents" class="mono">—</div></div>
+          <div><div class="hint">إعدادات محفوظة</div><div id="statSettings" class="mono">—</div></div>
+          <div><div class="hint">آخر نسخة احتياطية</div><div id="statBackup" class="mono">—</div></div>
+        </div>
+        <div class="row" style="margin-top:10px"><button class="btn" id="btnTestDB">اختبار قاعدة البيانات</button></div>
+        <pre id="diag" class="mono" style="white-space:pre-wrap;margin-top:8px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:200px;overflow:auto"></pre>
+        <div class="list" id="todayList" style="margin-top:10px"></div>
+      </div></aside>
+    </main>
+    <footer id="footer" class="hint" style="text-align:center;padding:8px"></footer>
+    <div class="toast"></div>
+  </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $all = s => Array.from(document.querySelectorAll(s));
+function toast(m){ const t=document.querySelector('.toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1100); }
+function diag(m){ const d=$('#diag'); d.textContent += (d.textContent?'\n':'') + m; }
+function showPanel(name){ $all('section.panel').forEach(p=>p.hidden = (p.getAttribute('data-panel')!==name)); $all('.tab').forEach(t=>t.setAttribute('aria-selected', t.getAttribute('data-tab')===name?'true':'false')); }
+document.getElementById('tabs').addEventListener('click', e=>{ const b=e.target.closest('.tab'); if(!b) return; const k=b.getAttribute('data-tab'); showPanel(k); if(k==='attendance') renderAttendance(); if(k==='students') renderStudents(); if(k==='reports') renderReports(); if(k==='import') renderImport(); if(k==='codes') renderCodes(); if(k==='backup') renderBackup(); if(k==='settings') renderSettings(); });
+
+function nowRiyadhISO(){ const f=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}); const p=f.formatToParts(new Date()); const g=t=>p.find(x=>x.type===t)?.value||'00'; return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}:${g('second')}`; }
+function todayRiyadh(){ return nowRiyadhISO().slice(0,10); }
+function parseHM(h,m){ return (h*60)+m; }
+function timeToMinutes(iso){ const hh=+iso.slice(11,13), mm=+iso.slice(14,16); return parseHM(hh,mm); }
+function weekdayName(y,m,d){ const t=[0,3,2,5,0,3,5,1,4,6,2,4]; if(m<3) y-=1; const w=(y+Math.floor(y/4)-Math.floor(y/100)+Math.floor(y/400)+t[m-1]+d)%7; return ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][w]; }
+function weekdayNameFromISO(iso){ const y=+iso.slice(0,4), m=+iso.slice(5,7), d=+iso.slice(8,10); return weekdayName(y,m,d); }
+function dmLine(){ const p=new Intl.DateTimeFormat('ar-SA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit',weekday:'long',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date()); const g=t=>p.find(x=>x.type===t)?.value||''; return `اليوم: ${g('weekday')} ${g('year')}-${g('month')}-${g('day')} ${g('hour')}:${g('minute')} — الدمام`; }
+function sqlQuote(str){ return `'${String(str||'').replaceAll("'","''")}'`; }
+function normalizeId(s){ if(s==null) return ''; s=String(s).replace(/\uFEFF/g,''); s=s.replace(/[\r\n\t]/g,'').trim(); const map={'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9','۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'}; return s.replace(/[٠-٩۰-۹]/g,d=>map[d]); }
+
+/* IndexedDB */
+const DB_NAME='attendance_local_sqlite', DB_STORE='sqlite_store_v1', DB_FILE_KEY='db_file_blob';
+function openIDB(){ return new Promise((res,rej)=>{ const req=indexedDB.open(DB_NAME,1); req.onupgradeneeded=()=>{ const idb=req.result; if(!idb.objectStoreNames.contains(DB_STORE)) idb.createObjectStore(DB_STORE); }; req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
+async function idbPut(k,v){ const idb=await openIDB(); return new Promise((res,rej)=>{ const tx=idb.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
+async function idbGet(k){ const idb=await openIDB(); return new Promise((res,rej)=>{ const tx=idb.transaction(DB_STORE,'readonly'); const r=tx.objectStore(DB_STORE).get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+
+/* sql.js init local→CDN */
+let SQL=null, db=null, _dbReady=false;
+async function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=()=>res(); s.onerror=()=>rej(new Error('فشل تحميل: '+src)); document.head.appendChild(s); }); }
+async function initSQL(){
+  diag('typeof initSqlJs: ' + (typeof window.initSqlJs));
+  if(typeof window.initSqlJs!=='function'){
+    diag('تحميل sql.js من CDN…'); await loadScript('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js');
+  }
+  const isLocal = !!document.querySelector('script[src$="lib/sql-wasm.js"]');
+  const locate = (f)=> isLocal ? ('./lib/'+f) : ('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/'+f);
+  const SQLlib = await window.initSqlJs({ locateFile: locate });
+  SQL = SQLlib;
+  const saved=await idbGet(DB_FILE_KEY);
+  db = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
+  db.exec(`PRAGMA foreign_keys=ON;
+    CREATE TABLE IF NOT EXISTS students(id INTEGER PRIMARY KEY AUTOINCREMENT,national_id TEXT UNIQUE,full_name TEXT,grade TEXT,class TEXT,guardian_phone TEXT);
+    CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY CHECK (id=1),assembly_hour INTEGER,assembly_minute INTEGER,grace_minutes INTEGER,school_name TEXT,principal_name TEXT,dedupe_seconds INTEGER DEFAULT 60,sound_enabled INTEGER DEFAULT 1);
+    INSERT OR IGNORE INTO settings(id,assembly_hour,assembly_minute,grace_minutes,school_name,principal_name) VALUES(1,7,0,5,'مدرسة الأمير سعود بن عبدالله بن جلوي المتوسطة','حسام بن محمد يار');
+    CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT,national_id TEXT,ts TEXT,status TEXT,late_minutes INTEGER);
+    CREATE INDEX IF NOT EXISTS idx_attendance_nid_ts ON attendance(national_id, ts);`);
+  await persistDB(); _dbReady=true; diag('✅ sql.js جاهز — DB ready');
+}
+function exec(sql){ db.exec(sql); }
+async function persistDB(){ const data=db.export(); await idbPut(DB_FILE_KEY,data); updateStats(); }
+function lastInsertId(){ const r=db.exec('SELECT last_insert_rowid()'); return r?.[0]?.values?.[0]?.[0] ?? null; }
+function getStudentsCount(){ const r=db.exec('SELECT COUNT(*) c FROM students'); return r?.[0]?.values?.[0]?.[0] ?? 0; }
+function readSettings(){ const r=db.exec('SELECT * FROM settings WHERE id=1'); if(!r.length) return null; const row=r[0].values[0], cols=r[0].columns, o={}; cols.forEach((c,i)=>o[c]=row[i]); return o; }
+
+/* Attendance */
+const undoStack=[]; let _attnTimer=null;
+function updateUndoBtn(){ const b=$('#btnUndo'); if(b) b.disabled = undoStack.length===0; }
+function undoLast(){ try{ const id=undoStack.pop(); if(!id) return; exec(`DELETE FROM attendance WHERE id=${id}`); persistDB(); updateUndoBtn(); const row=document.querySelector(`tr[data-id="${id}"]`); if(row) row.remove(); toast('تم التراجع'); }catch(e){ diag('❌ undoLast: '+e.message); } }
+function renderAttendance(){
+  const mount=$('#attnMount');
+  const tick=()=>{ $('#attnClock').textContent=dmLine(); }; tick(); if(_attnTimer) clearInterval(_attnTimer); _attnTimer=setInterval(tick,60000);
+  if(!_dbReady){ mount.textContent='بانتظار التهيئة…'; return; }
+  mount.innerHTML=`
+    <div class="grid-2">
+      <div>
+        <div class="row">
+          <input type="text" id="barcode" class="mono" placeholder="مثال: 1234567890" autocomplete="off" inputmode="numeric">
+          <button class="btn" id="btnClear">مسح</button>
+          <button class="btn" id="btnUndo" disabled>تراجع</button>
+        </div>
+        <div class="hint" style="margin-top:6px">${dmLine()}</div>
+        <div id="card" class="student-card" style="display:none;margin-top:10px"></div>
+      </div>
+      <div>
+        <div class="history"><table><thead><tr><th>اليوم</th><th>الوقت</th><th>الاسم</th><th>الهوية</th><th>الصف</th><th>الفصل</th><th>الحالة</th><th>تأخر</th></tr></thead><tbody id="hist"></tbody></table></div>
+      </div>
+    </div>`;
+  const input=$('#barcode'); input && input.focus();
+  input && input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); handleScan(input.value.trim()); input.value=''; } });
+  $('#btnClear') && ($('#btnClear').onclick=()=>{ input.value=''; input.focus(); });
+  $('#btnUndo') && ($('#btnUndo').onclick=undoLast);
+}
+function findStudentRow(nid){ const r=db.exec(`SELECT full_name, grade, class FROM students WHERE national_id=${sqlQuote(nid)}`); if(!r.length) return null; const v=r[0].values[0]; return { full_name:v[0], grade:v[1], class:v[2] } }
+function getLastAttendance(nid){ const r=db.exec(`SELECT id, ts FROM attendance WHERE national_id=${sqlQuote(nid)} ORDER BY ts DESC LIMIT 1`); if(!r.length) return null; const v=r[0].values[0]; return { id:v[0], ts:v[1] } }
+function isDuplicateWithinWindow(nid, whenISO){ const last=getLastAttendance(nid); if(!last) return false; if(last.ts.slice(0,10)!==whenISO.slice(0,10)) return false; const s=readSettings(); const diffMin=Math.abs(timeToMinutes(whenISO)-timeToMinutes(last.ts)); const windowSec = s?.dedupe_seconds ?? 60; return (diffMin*60) < windowSec; }
+function showCard({notFound, duplicate, nid, when, full_name, grade, class:klass, status, late}){
+  const el=$('#card'); el.style.display='grid'; const dt=when.slice(0,10)+' '+when.slice(11,16);
+  if(notFound){ el.className='student-card err-bg'; el.innerHTML=`<div><div class="hint">الهوية</div><div class="mono">${nid}</div><div class="hint" style="margin-top:6px">الوقت</div><div class="mono">${dt}</div></div><div><span class="stat-chip" style="background:#fde8e8;color:#b91c1c">غير موجود</span></div>`; return; }
+  if(duplicate){ el.className='student-card warn-bg'; el.innerHTML=`<div><div class="hint">الاسم</div><div style="font-weight:700">${full_name}</div><div class="hint" style="margin-top:6px">الصف/الفصل</div><div>${grade} — ${klass}</div></div><div><div class="hint">الهوية</div><div class="mono">${nid}</div><div class="hint" style="margin-top:6px">الوقت</div><div class="mono">${dt}</div><div style="margin-top:8px"><span class="stat-chip" style="background:#fff5e6;color:#b45309">مكرر — تم تجاهله</span></div></div>`; return; }
+  const chip = status==='on_time'? `<span class="stat-chip" style="background:#e7f7eb;color:#166534">حاضر في الوقت</span>` : `<span class="stat-chip" style="background:#fff5e6;color:#b45309">متأخر</span>`;
+  el.className = status==='on_time' ? 'student-card ok-bg' : 'student-card warn-bg';
+  el.innerHTML=`<div><div class="hint">الاسم</div><div style="font-weight:700">${full_name}</div><div class="hint" style="margin-top:6px">الصف/الفصل</div><div>${grade} — ${klass}</div></div><div><div class="hint">الهوية</div><div class="mono">${nid}</div><div class="hint" style="margin-top:6px">الوقت</div><div class="mono">${dt}</div><div style="margin-top:8px">${chip} ${status==='late'?`· تأخر <b>${late}</b> دقيقة`:''}</div></div>`;
+}
+function pushHistoryRow({id, when, nid, name, grade, class:klass, status, late}){
+  const tr=document.createElement('tr'); tr.dataset.id=id;
+  const dt=when.slice(11,16); const day=weekdayNameFromISO(when);
+  tr.innerHTML=`<td>${day}</td><td class="mono">${dt}</td><td>${name||'—'}</td><td class="mono">${nid}</td><td>${grade||'—'}</td><td>${klass||'—'}</td><td>${status==='on_time'?'حاضر':'متأخر'}</td><td>${status==='late'?late:'—'}</td>`;
+  $('#hist').prepend(tr);
+  addTodayListItem({name, nid, status});
+}
+function handleScan(raw){
+  if(!_dbReady) return alert('قاعدة البيانات لم تُجهّز بعد');
+  if(!raw) return; const nid=normalizeId(raw);
+  const s=readSettings()||{assembly_hour:7,assembly_minute:0,grace_minutes:5};
+  const when=nowRiyadhISO(); const checkMin=timeToMinutes(when);
+  const startMin=parseHM(s.assembly_hour,s.assembly_minute); const lateBorder=startMin+(s.grace_minutes||0);
+  let status='on_time', late=0; if(checkMin>lateBorder){ status='late'; late=checkMin-startMin; }
+  const st=findStudentRow(nid);
+  if(!st){ showCard({notFound:true,nid,when}); toast('⚠️ غير موجود'); return; }
+  if(isDuplicateWithinWindow(nid,when)){ showCard({duplicate:true,nid,when,...st}); toast('تم تجاهل التكرار'); return; }
+  exec(`INSERT INTO attendance(national_id, ts, status, late_minutes) VALUES(${sqlQuote(nid)}, ${sqlQuote(when)}, ${sqlQuote(status)}, ${late})`);
+  const insId=lastInsertId(); persistDB(); undoStack.push(insId); updateUndoBtn();
+  showCard({ ...st, nid, when, status, late }); pushHistoryRow({ id:insId, when, nid, name:st.full_name, grade:st.grade, class:st.class, status, late });
+}
+
+/* Students */
+function renderStudents(){
+  if(!_dbReady){ $('#studentsMount').textContent='بانتظار التهيئة…'; return; }
+  $('#studentsMount').innerHTML = `
+    <div class="row">
+      <input type="text" id="q" placeholder="بحث بالاسم أو الهوية">
+      <select id="fGrade"><option value="">كل الصفوف</option></select>
+      <select id="fClass"><option value="">كل الفصول</option></select>
+      <button class="btn" id="btnSearch">بحث</button>
+      <button class="btn" id="btnShowAll">عرض الكل</button>
+    </div>
+    <div class="list" id="stuList" style="margin-top:10px"></div>
+    <div class="divider"></div>
+    <h3>تعديل/إضافة طالب</h3>
+    <div class="grid-3">
+      <div><label>الهوية</label><input id="s_nid"></div>
+      <div><label>الاسم</label><input id="s_name"></div>
+      <div><label>الصف</label><input id="s_grade"></div>
+      <div><label>الفصل</label><input id="s_class"></div>
+      <div><label>جوال ولي الأمر</label><input id="s_phone"></div>
+      <div style="align-self:end" class="row">
+        <button class="btn primary" id="btnSaveStu">حفظ</button>
+        <button class="btn" id="btnDeleteStu">حذف</button>
+      </div>
+    </div>`;
+  fillGradeClassFilters('students');
+  const list=$('#stuList');
+  function renderList(rows){ list.innerHTML=''; rows.forEach(r=>{ const div=document.createElement('div'); div.className='list-item'; div.innerHTML=`<div><b>${r.full_name}</b> <span class="hint">— ${r.grade} / ${r.class}</span></div><div class="mono">${r.national_id}</div>`; div.onclick=()=>{ $('#s_nid').value=r.national_id; $('#s_name').value=r.full_name; $('#s_grade').value=r.grade; $('#s_class').value=r.class; $('#s_phone').value=r.guardian_phone||''; }; list.appendChild(div); }); if(!rows.length) list.innerHTML='<div class="list-item"><span class="hint">لا نتائج</span></div>'; }
+  function fetchAll(q='', g='', c=''){ let where='1=1'; if(q){ const qq='%'+q+'%'; where+=` AND (full_name LIKE ${sqlQuote(qq)} OR national_id LIKE ${sqlQuote(qq)})`; } if(g) where+=` AND grade=${sqlQuote(g)}`; if(c) where+=` AND class=${sqlQuote(c)}`; const rs=db.exec(`SELECT national_id, full_name, grade, class, guardian_phone FROM students WHERE ${where} ORDER BY full_name LIMIT 200`); const rows=rs.length? rs[0].values.map(v=>({national_id:v[0],full_name:v[1],grade:v[2],class:v[3],guardian_phone:v[4]})):[]; renderList(rows); }
+  $('#btnSearch').onclick=()=> fetchAll($('#q').value.trim(), $('#fGrade').value, $('#fClass').value);
+  $('#btnShowAll').onclick=()=>{ $('#q').value=''; $('#fGrade').value=''; $('#fClass').value=''; fetchAll(); };
+  $('#btnSaveStu').onclick=async()=>{ const nid=normalizeId($('#s_nid').value||''); if(!nid) return alert('أدخل الهوية'); const name=$('#s_name').value.trim(); const g=$('#s_grade').value.trim(); const c=$('#s_class').value.trim(); const phone=($('#s_phone').value||'').trim(); try{ exec(`INSERT INTO students(national_id, full_name, grade, class, guardian_phone) VALUES(${sqlQuote(nid)}, ${sqlQuote(name)}, ${sqlQuote(g)}, ${sqlQuote(c)}, ${sqlQuote(phone)})`); }catch(e){ if(String(e).includes('UNIQUE')){ exec(`UPDATE students SET full_name=${sqlQuote(name)}, grade=${sqlQuote(g)}, class=${sqlQuote(c)}, guardian_phone=${sqlQuote(phone)} WHERE national_id=${sqlQuote(nid)}`); } else{ throw e; } } await persistDB(); fetchAll($('#q').value.trim(), $('#fGrade').value, $('#fClass').value); updateStats(); toast('تم الحفظ'); };
+  $('#btnDeleteStu').onclick=async()=>{ const nid=normalizeId($('#s_nid').value||''); if(!nid) return alert('اختر طالبًا'); if(!confirm('حذف الطالب؟')) return; exec(`DELETE FROM students WHERE national_id=${sqlQuote(nid)}`); await persistDB(); fetchAll($('#q').value.trim(), $('#fGrade').value, $('#fClass').value); updateStats(); toast('تم الحذف'); };
+  fetchAll();
+}
+
+/* Reports */
+function renderReports(){
+  if(!_dbReady){ $('#reportsMount').textContent='بانتظار التهيئة…'; return; }
+  const today=todayRiyadh(); const ym=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit'}).format(new Date());
+  $('#reportsMount').innerHTML=`
+    <div class="row">
+      <button class="tab" id="tabDaily" aria-selected="true">يومي</button>
+      <button class="tab" id="tabMonthly">شهري</button>
+      <span><span>الصف</span> <select id="rGrade"><option value="">الكل</option></select></span>
+      <span><span>الفصل</span> <select id="rClass"><option value="">الكل</option></select></span>
+    </div>
+    <div id="reportBody" style="margin-top:10px"></div>`;
+  $('#tabDaily').onclick=()=>select('daily'); $('#tabMonthly').onclick=()=>select('monthly'); fillGradeClassFilters('reports');
+  function select(kind){ $('#tabDaily').setAttribute('aria-selected', kind==='daily'); $('#tabMonthly').setAttribute('aria-selected', kind==='monthly'); if(kind==='daily') renderDaily(); else renderMonthly(); }
+  function filterWhere(){ const g=$('#rGrade').value, c=$('#rClass').value; let where='1=1'; if(g) where+=` AND s.grade=${sqlQuote(g)}`; if(c) where+=` AND s.class=${sqlQuote(c)}`; return where; }
+  function renderDaily(){ $('#reportBody').innerHTML=`<div class="row"><label>تاريخ</label><input type="date" id="repDate" value="${today}"><button class="btn" id="btnRefresh">تحديث</button><button class="btn" id="btnCSV">CSV</button><button class="btn primary no-print" id="btnPrint">طباعة</button></div><div class="history" style="margin-top:10px"><table><thead><tr><th>اليوم</th><th>الوقت</th><th>الاسم</th><th>الهوية</th><th>الصف</th><th>الفصل</th><th>الحالة</th><th>تأخر</th></tr></thead><tbody id="repBody"></tbody></table></div>`; const dateInput=$('#repDate'); function load(){ const like=dateInput.value+'%'; const where=filterWhere(); const rs=db.exec(`SELECT a.id,a.national_id,a.ts,a.status,a.late_minutes,s.full_name,s.grade,s.class FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where} ORDER BY a.ts ASC`); const rows=rs.length? rs[0].values.map(v=>({id:v[0],nid:v[1],ts:v[2],status:v[3],late:v[4],name:v[5],grade:v[6],class:v[7]})) : []; const body=$('#repBody'); body.innerHTML=''; rows.forEach((r,i)=>{ const tr=document.createElement('tr'); if(i===0) tr.classList.add('hl-green'); if(i===rows.length-1) tr.classList.add('hl-red'); tr.innerHTML=`<td>${weekdayNameFromISO(r.ts)}</td><td class="mono">${r.ts.slice(11,16)}</td><td>${r.name||'—'}</td><td class="mono">${r.nid}</td><td>${r.grade||'—'}</td><td>${r.class||'—'}</td><td>${r.status==='on_time'?'حاضر':'متأخر'}</td><td>${r.status==='late'?r.late:'—'}</td>`; body.appendChild(tr); }); } function exportCSV(){ const like=dateInput.value+'%'; const where=filterWhere(); const rs=db.exec(`SELECT a.ts,s.full_name,a.national_id,a.status,a.late_minutes,s.grade,s.class FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where} ORDER BY a.ts ASC`); const rows=rs.length? rs[0].values:[]; const header=['weekday','time','full_name','national_id','status','late_minutes','grade','class']; const csv=[header.join(',')].concat(rows.map(r=>{ const ts=String(r[0]??''); return [weekdayNameFromISO(ts), ts.slice(11,16), String(r[1]??''), String(r[2]??''), String(r[3]??''), String(r[4]??''), String(r[5]??''), String(r[6]??'')].join(','); })).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`hadir_${dateInput.value}.csv`; a.click(); URL.revokeObjectURL(a.href);} $('#btnRefresh').onclick=load; $('#btnCSV').onclick=exportCSV; $('#btnPrint').onclick=()=>window.print(); load(); }
+  function renderMonthly(){ $('#reportBody').innerHTML=`<div class="row"><label>الشهر</label><input type="month" id="repMonth" value="${ym}"><button class="btn" id="btnMRefresh">تحديث</button><button class="btn" id="btnMCSV">CSV</button></div><div class="history" style="margin-top:10px"><table><thead><tr><th>التاريخ</th><th>حضور</th><th>حاضر في الوقت</th><th>متأخر</th><th>نسبة حضور</th></tr></thead><tbody id="mBody"></tbody></table></div>`; function load(){ const month=$('#repMonth').value; const where=filterWhere(); const rsDays=db.exec(`SELECT DISTINCT substr(a.ts,1,10) d FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(month+'%')} AND ${where} ORDER BY d ASC`); const days=rsDays.length? rsDays[0].values.map(v=>v[0]):[]; const totalStudents=getStudentsCount(); const body=$('#mBody'); body.innerHTML=''; days.forEach(d=>{ const like=d+'%'; const rs=db.exec(`SELECT a.status FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where}`); const vals=rs.length? rs[0].values.map(v=>v[0]) : []; const presentUnique=db.exec(`SELECT COUNT(DISTINCT a.national_id) FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where}`)[0].values[0][0]; const ontime=vals.filter(s=>s==='on_time').length; const late=vals.filter(s=>s==='late').length; const pr= totalStudents? Math.round((presentUnique/totalStudents)*100) : 0; const tr=document.createElement('tr'); tr.innerHTML=`<td class="mono">${d}</td><td>${presentUnique}/${totalStudents}</td><td>${ontime}</td><td>${late}</td><td>${pr}%</td>`; body.appendChild(tr); }); } function exportCSV(){ const month=$('#repMonth').value; const where=filterWhere(); const rs=db.exec(`SELECT substr(a.ts,1,10) d, COUNT(*) c, SUM(CASE WHEN a.status='on_time' THEN 1 ELSE 0 END) ontime, SUM(CASE WHEN a.status='late' THEN 1 ELSE 0 END) late FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(month+'%')} AND ${where} GROUP BY d ORDER BY d ASC`); const rows=rs.length? rs[0].values:[]; const header=['date','count','on_time','late']; const csv=[header.join(',')].concat(rows.map(r=>r.map(x=>String(x??'')).join(','))).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`hadir_month_${month}.csv`; a.click(); URL.revokeObjectURL(a.href);} $('#btnMRefresh').onclick=load; $('#btnMCSV').onclick=exportCSV; load(); }
+  select('daily');
+}
+
+/* Import */
+function renderImport(){
+  if(!_dbReady){ $('#importMount').textContent='بانتظار التهيئة…'; return; }
+  $('#importMount').innerHTML=`<div class="row"><input type="file" id="csvFile" accept=".csv,text/csv"/><button class="btn primary" id="btnImport">استيراد CSV</button><a class="btn" download="students_template.csv" href="students_template.csv">تحميل القالب</a></div><div class="divider"></div><h3>إضافة طالب يدويًا</h3><div class="grid-3"><div><label>الهوية</label><input id="i_nid"></div><div><label>الاسم</label><input id="i_name"></div><div><label>الصف</label><input id="i_grade"></div><div><label>الفصل</label><input id="i_class"></div><div><label>الجوال</label><input id="i_phone"></div><div style="align-self:end"><button class="btn primary" id="btnAdd">إضافة</button></div></div><pre id="importLog" class="mono" style="white-space:pre-wrap;margin-top:10px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:220px;overflow:auto"></pre>`;
+  $('#btnAdd').onclick=async()=>{ const nid=normalizeId($('#i_nid').value||''); if(!nid) return alert('أدخل الهوية'); const name=$('#i_name').value.trim(); const g=$('#i_grade').value.trim(); const c=$('#i_class').value.trim(); const p=($('#i_phone').value||'').trim(); try{ exec(`INSERT INTO students(national_id, full_name, grade, class, guardian_phone) VALUES(${sqlQuote(nid)}, ${sqlQuote(name)}, ${sqlQuote(g)}, ${sqlQuote(c)}, ${sqlQuote(p)})`); }catch(e){ if(String(e).includes('UNIQUE')) return alert('موجود مسبقًا'); else throw e; } await persistDB(); updateStats(); toast('تمت الإضافة'); };
+  $('#btnImport').onclick=async()=>{ const f=$('#csvFile').files?.[0]; if(!f) return alert('اختر ملفًا'); const text=await f.text(); const rep=importStudentsCSV(text); $('#importLog').textContent=rep; await persistDB(); updateStats(); };
+}
+function detectDelimiter(s){ const c=(s.match(/,/g)||[]).length, sc=(s.match(/;/g)||[]).length; return sc>c?';':','; }
+function normalizeHeader(h){ if(!h) return ''; const x=h.trim().toLowerCase(); if(["رقم الهوية","رقم_الهوية","هوية","id","nid"].includes(x)) return 'national_id'; if(["الاسم","اسم","الاسم الكامل","full_name","name"].includes(x)) return 'full_name'; if(["الصف","grade","year"].includes(x)) return 'grade'; if(["الفصل","class","section"].includes(x)) return 'class'; if(["رقم ولي الأمر","guardian","guardian_phone","phone"].includes(x)) return 'guardian_phone'; return x; }
+function importStudentsCSV(csv){ let s=csv.replace(/^\uFEFF/, ''); const lines=s.split(/\r?\n/).filter(Boolean); if(!lines.length) return '⚠️ ملف فارغ'; const delim=detectDelimiter(lines[0]); const headers=lines[0].split(delim).map(normalizeHeader); const idx={ national_id:headers.indexOf('national_id'), full_name:headers.indexOf('full_name'), grade:headers.indexOf('grade'), class:headers.indexOf('class'), guardian_phone:headers.indexOf('guardian_phone'), }; if(idx.national_id<0||idx.full_name<0||idx.grade<0||idx.class<0) return '❌ الأعمدة المطلوبة ناقصة'; let ok=0,dup=0,bad=0; const stmt=db.prepare(`INSERT INTO students(national_id, full_name, grade, class, guardian_phone) VALUES(?,?,?,?,?)`); db.exec('BEGIN'); for(let i=1;i<lines.length;i++){ const row=lines[i].split(delim); const nid=normalizeId(row[idx.national_id]||''); if(!nid){bad++; continue;} const name=(row[idx.full_name]||'').trim(); const g=(row[idx.grade]||'').trim(); const c=(row[idx.class]||'').trim(); const p=idx.guardian_phone>=0?String(row[idx.guardian_phone]).trim():''; try{ stmt.run([nid,name,g,c,p]); ok++; }catch(e){ if(String(e).includes('UNIQUE')) dup++; else { bad++; } } } db.exec('COMMIT'); stmt.free(); return `تم الاستيراد\nالمقبول:${ok}\nمكرر:${dup}\nمرفوض:${bad}`; }
+
+/* Codes */
+async function ensureBarcodeLibs(){ if(typeof window.JsBarcode!=='function'){ try{ await loadScript('./lib/JsBarcode.all.min.js'); }catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js'); } } if(typeof window.QRCode==='undefined'){ try{ await loadScript('./lib/qrcode.min.js'); }catch(e){ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'); } } }
+function renderCodes(){ if(!_dbReady){ $('#codesMount').textContent='بانتظار التهيئة…'; return; } $('#codesMount').innerHTML=`<div class="row"><label>نوع</label><select id="codeType"><option value="code128">Code128</option><option value="qr">QR</option><option value="both">كلاهما</option></select><span>الصف</span><select id="cGrade"><option value="">الكل</option></select><span>الفصل</span><select id="cClass"><option value="">الكل</option></select><button class="btn primary" id="btnGen">توليد</button><button class="btn" id="btnPrintCodes">طباعة</button></div><div class="divider"></div><div id="codesArea" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px"></div>`; fillGradeClassFilters('codes'); $('#btnPrintCodes').onclick=()=>window.print(); $('#btnGen').onclick=async()=>{ await ensureBarcodeLibs(); const area=$('#codesArea'); area.innerHTML=''; const g=$('#cGrade').value, c=$('#cClass').value; let where='1=1'; if(g) where+=` AND grade=${sqlQuote(g)}`; if(c) where+=` AND class=${sqlQuote(c)}`; const rs=db.exec(`SELECT national_id, full_name, grade, class FROM students WHERE ${where} ORDER BY full_name`); const rows=rs.length? rs[0].values.map(v=>({nid:v[0],name:v[1],grade:v[2],class:v[3]})) : []; if(!rows.length){ area.innerHTML='<div class="hint">لا طلاب</div>'; return; } const type=$('#codeType').value; const grid=document.createElement('div'); grid.style.display='grid'; grid.style.gridTemplateColumns='1fr 1fr 1fr'; grid.style.gap='12px'; rows.forEach(r=>{ const card=document.createElement('div'); card.style.border='1px solid var(--border)'; card.style.borderRadius='12px'; card.style.padding='10px'; card.innerHTML=`<div style="font-weight:700">${r.name}</div><div class="hint">${r.grade} / ${r.class}</div><div class="mono">${r.nid}</div>`; if(type==='code128'||type==='both'){ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','barcode'); svg.setAttribute('jsbarcode-value', r.nid); svg.setAttribute('jsbarcode-displayValue','false'); svg.style.width='100%'; svg.style.height='60px'; card.appendChild(svg); } if(type==='qr'||type==='both'){ const div=document.createElement('div'); div.style.width='80px'; div.style.height='80px'; card.appendChild(div); new QRCode(div, { text: r.nid, width: 80, height: 80 }); } grid.appendChild(card); }); area.appendChild(grid); if(typeof window.JsBarcode==='function'){ JsBarcode(".barcode").init(); } toast('تم توليد الأكواد'); }; }
+
+/* Backup */
+function renderBackup(){ if(!_dbReady){ $('#backupMount').textContent='بانتظار التهيئة…'; return; } $('#backupMount').innerHTML=`<div class="row"><button class="btn primary" id="btnExportDB">تنزيل ملف القاعدة</button><input type="file" id="dbFile" accept=".db,.sqlite,.bin,application/octet-stream"/><button class="btn" id="btnRestore">استعادة</button></div>`; $('#btnExportDB').onclick=exportDBFile; $('#btnRestore').onclick=restoreDBFile; }
+async function exportDBFile(){ await persistDB(); const data=await idbGet(DB_FILE_KEY); if(!data){ alert('لا توجد قاعدة'); return;} const blob=new Blob([data],{type:'application/octet-stream'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`hadir_${new Date().toISOString().slice(0,10)}.sqlite`; a.click(); URL.revokeObjectURL(a.href); localStorage.setItem('lastBackupAt', new Date().toISOString()); updateStats(); }
+async function restoreDBFile(){ const f=$('#dbFile').files?.[0]; if(!f){ alert('اختر ملف'); return;} const buf=new Uint8Array(await f.arrayBuffer()); await idbPut(DB_FILE_KEY, buf); db?.close?.(); db=new SQL.Database(buf); updateStats(); alert('تمت الاستعادة'); }
+
+/* Settings */
+function renderSettings(){ if(!_dbReady){ $('#settingsMount').textContent='بانتظار التهيئة…'; return; } const s=readSettings(); const hh=s?.assembly_hour??7, mm=s?.assembly_minute??0, grace=s?.grace_minutes??5; const timeStr=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; const dedupe=s?.dedupe_seconds??60; const sound=(s?.sound_enabled??1)?1:0; const school=s?.school_name??''; const principal=s?.principal_name??''; $('#settingsMount').innerHTML=`<div class="grid-3"><div><label>وقت الطابور</label><input type="time" id="assemblyTime" value="${timeStr}"></div><div><label>وقت السماح</label><input type="number" id="grace" value="${grace}"></div><div><label>منع التكرار (ث)</label><input type="number" id="dedupe" value="${dedupe}"></div><div><label>الصوت</label><select id="sound"><option value="1" ${sound?'selected':''}>مفعل</option><option value="0" ${!sound?'selected':''}>متوقف</option></select></div><div><label>اسم المدرسة</label><input id="school" value="${school}"></div><div><label>اسم المدير</label><input id="principal" value="${principal}"></div></div><div class="row" style="margin-top:10px"><button class="btn primary" id="btnSave">حفظ</button></div>`; $('#btnSave').onclick=async()=>{ const t=$('#assemblyTime').value||'07:00'; const [H,M]=t.split(':').map(n=>parseInt(n,10)); const g=parseInt($('#grace').value||'0',10); const dsec=Math.max(0, parseInt($('#dedupe').value||'60',10)); const snd=parseInt($('#sound').value,10); const sc=$('#school').value.trim(); const pr=$('#principal').value.trim(); exec(`UPDATE settings SET assembly_hour=${H}, assembly_minute=${M}, grace_minutes=${g}, school_name=${sqlQuote(sc)}, principal_name=${sqlQuote(pr)}, dedupe_seconds=${dsec}, sound_enabled=${snd} WHERE id=1`); await persistDB(); updateHeaderFromSettings(); toast('تم الحفظ'); }; }
+
+/* Shared helpers */
+function fillGradeClassFilters(scope){ const rsG=db.exec('SELECT DISTINCT grade FROM students WHERE grade IS NOT NULL AND TRIM(grade)<>"" ORDER BY grade'); const rsC=db.exec('SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND TRIM(class)<>"" ORDER BY class'); const grades=rsG.length? rsG[0].values.map(v=>v[0]):[]; const classes=rsC.length? rsC[0].values.map(v=>v[0]):[]; if(scope==='students' || scope==='reports' || scope==='codes'){ const gSel=scope==='students'?'#fGrade':(scope==='reports'?'#rGrade':'#cGrade'); const cSel=scope==='students'?'#fClass':(scope==='reports'?'#rClass':'#cClass'); const g=$(gSel), c=$(cSel); if(g){ g.innerHTML='<option value="">كل الصفوف</option>'+grades.map(x=>`<option>${x}</option>`).join(''); } if(c){ c.innerHTML='<option value="">كل الفصول</option>'+classes.map(x=>`<option>${x}</option>`).join(''); } } }
+function addTodayListItem({name,nid,status}){ const list=$('#todayList'); const div=document.createElement('div'); div.className='list-item'; div.innerHTML=`<div>${name||'—'} <span class="hint">(${status==='on_time'?'حاضر':'متأخر'})</span></div><div class="mono">${nid}</div>`; list.prepend(div); if(list.children.length>80){ list.removeChild(list.lastChild); } }
+
+/* Stats/Footer/Test */
+function updateStats(){ const s1=$('#statStudents'), s2=$('#statSettings'), s3=$('#statBackup'); if(!s1) return; s1.textContent=getStudentsCount(); s2.textContent= readSettings()? 'نعم':'لا'; const last=localStorage.getItem('lastBackupAt'); s3.textContent= last ? new Date(last).toLocaleString('ar-SA') : '—'; }
+function updateHeaderFromSettings(){ const s=readSettings(); if(!s) return; $('#schoolName').textContent=s.school_name||'—'; $('#principalName').textContent=s.principal_name?('مدير المدرسة: '+s.principal_name):'—'; }
+function updateFooter(){ const parts=new Intl.DateTimeFormat('ar-SA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit'}).formatToParts(new Date()); const Y=parts.find(p=>p.type==='year')?.value||''; const M=parts.find(p=>p.type==='month')?.value||''; $('#footer').textContent = `حاضر • الإصدار 7.0 • تطوير أ.هيثم الزهراني • ${Y}/${M}`; }
+function testDB(){ try{ db.exec(`CREATE TABLE IF NOT EXISTS demo(t TEXT); DELETE FROM demo; INSERT INTO demo(t) VALUES('hello'),('world');`); const r=db.exec(`SELECT t FROM demo ORDER BY t ASC`); alert('DB OK: '+ (r[0]?.values?.map(v=>v[0]).join(', ')||'(no rows)')); }catch(e){ alert('DB test failed: '+e.message); } }
+
+/* Boot */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  updateFooter(); $('#btnTestDB').onclick=testDB; showPanel('attendance'); $('#attnClock').textContent=dmLine();
+  try{
+    diag('typeof initSqlJs: '+(typeof window.initSqlJs));
+    await initSQL(); updateHeaderFromSettings(); updateStats(); renderAttendance();
+  }catch(e){ diag('❌ تعذّر البدء: '+e.message); alert('تعذّر البدء: '+e.message); }
+});
+</script>
+</body>
+</html>
