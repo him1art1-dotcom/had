@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>حاضر | بوابة الإشراف</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+      (function () {
+        try {
+          var storageKey = 'hader:theme';
+          var defaultAccent = '#2f80ed';
+          var parsed = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          var mode = typeof parsed.mode === 'string' ? parsed.mode : 'system';
+          var accent = typeof parsed.accent === 'string' ? parsed.accent : defaultAccent;
+          if (!/^#?[0-9a-fA-F]{6}$/.test(accent)) {
+            accent = defaultAccent;
+          }
+          if (accent.charAt(0) !== '#') {
+            accent = '#' + accent;
+          }
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = mode === 'dark' || (mode === 'system' && prefersDark) ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.dataset.themeMode = mode;
+          var hex = accent.slice(1);
+          var r = parseInt(hex.slice(0, 2), 16);
+          var g = parseInt(hex.slice(2, 4), 16);
+          var b = parseInt(hex.slice(4, 6), 16);
+          if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+            document.documentElement.style.setProperty('--adm-accent', accent.toLowerCase());
+            document.documentElement.style.setProperty('--adm-accent-rgb', r + ', ' + g + ', ' + b);
+            var rn = r / 255;
+            var gn = g / 255;
+            var bn = b / 255;
+            var transform = function (channel) {
+              return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+            };
+            var luminance = 0.2126 * transform(rn) + 0.7152 * transform(gn) + 0.0722 * transform(bn);
+            var contrast = luminance > 0.55 ? '#041124' : '#ffffff';
+            document.documentElement.style.setProperty('--adm-accent-contrast', contrast);
+            document.documentElement.style.setProperty('--btn-text', contrast);
+            var mixComponent = function (component, target, ratio) {
+              return Math.round(component + (target - component) * ratio);
+            };
+            var toHex = function (value) {
+              var hex = value.toString(16);
+              return hex.length === 1 ? '0' + hex : hex;
+            };
+            var mixRatio = theme === 'dark' ? 0.32 : 0.18;
+            var mixTarget = theme === 'dark' ? 255 : 0;
+            var mixR = mixComponent(r, mixTarget, mixRatio);
+            var mixG = mixComponent(g, mixTarget, mixRatio);
+            var mixB = mixComponent(b, mixTarget, mixRatio);
+            document.documentElement.style.setProperty('--brand-accent', '#' + toHex(mixR) + toHex(mixG) + toHex(mixB));
+            document.documentElement.style.setProperty('--brand-accent-rgb', mixR + ', ' + mixG + ', ' + mixB);
+            var overlayAlpha = theme === 'dark' ? 0.28 : 0.22;
+            var overlayStrongAlpha = theme === 'dark' ? 0.36 : 0.3;
+            document.documentElement.style.setProperty('--surface-overlay', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayAlpha + ')');
+            document.documentElement.style.setProperty('--surface-overlay-strong', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayStrongAlpha + ')');
+          }
+        } catch (error) {
+          /* تجاهل أي أخطاء في القراءة المسبقة */
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/leave.css" />
+    <script defer src="./sql-wasm.js"></script>
+  </head>
+  <body>
+    <div class="page-root">
+      <div class="school-lock" data-school-lock hidden>
+        <div
+          class="school-lock__dialog"
+          data-school-lock-dialog
+          role="alertdialog"
+          aria-modal="true"
+          tabindex="-1"
+        >
+          <span class="school-lock__light" aria-hidden="true"></span>
+          <div class="school-lock__content">
+            <h2 class="school-lock__title">تم إيقاف المدرسة</h2>
+            <p class="school-lock__message" data-school-lock-message>راجع الدعم الفني</p>
+          </div>
+        </div>
+      </div>
+      <div class="leave-gate" data-access-gate hidden>
+      <form class="leave-gate__form" data-access-form>
+        <h2>تأكيد هوية الدخول</h2>
+        <p>هذه البوابة مخصصة للمشرفين المعتمدين والإدارة.</p>
+        <div class="field">
+          <label for="access-role">اختر الصلاحية</label>
+          <select id="access-role" name="accessRole" data-access-role-select required>
+            <option value="">— اختر الجهة —</option>
+            <option value="general">المشرف العام</option>
+            <option value="class">مشرف الصفوف</option>
+            <option value="admin">الإدارة</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="access-id">أدخل المعرف المخصص</label>
+          <input id="access-id" name="accessIdentifier" type="text" required data-access-identifier />
+        </div>
+        <button type="submit" class="primary">دخول</button>
+        <p class="status" data-access-error></p>
+      </form>
+    </div>
+      <main class="leave-shell">
+      <header class="leave-header">
+        <div class="leave-heading">
+          <span class="badge">تنسيق الإشراف</span>
+          <p class="leave-school" data-school-name hidden></p>
+          <h1>بوابة الإشراف</h1>
+          <p>
+            انطلق بإدارة عمليات الإشراف، تسجيل الطلبات، ومتابعة الحضور لحظيًا من مكان واحد.
+            يتم حفظ كل تغيير محليًا مع بث فوري لبقية الواجهات المتصلة.
+          </p>
+        </div>
+        <div class="leave-meta">
+          <div class="signal-indicator" data-store-indicator data-state="local">
+            <span class="signal-indicator__light" aria-hidden="true"></span>
+            <div class="signal-indicator__body">
+              <span class="signal-indicator__title">إشارة مضيئة</span>
+              <span class="signal-indicator__label" data-store-label>غير متصل</span>
+              <span class="signal-indicator__message" data-store-message>راجع الدعم الفني</span>
+            </div>
+          </div>
+          <div class="leave-meta__access" data-access-chip hidden>
+            <span class="leave-meta__label">الدخول عبر</span>
+            <span class="leave-meta__value" data-access-chip-role>—</span>
+            <button type="button" class="ghost" data-access-signout>تسجيل خروج</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="leave-hero" data-leave-hero hidden>
+        <img alt="صورة ترحيبية لبوابة الإشراف" data-leave-hero-image />
+      </section>
+
+      <section class="leave-messaging" data-leave-messaging hidden>
+        <article class="leave-message" data-morning-card hidden>
+          <header class="leave-message__header">
+            <span class="leave-message__icon" aria-hidden="true">🌅</span>
+            <div>
+              <h2>رسالة صباحية</h2>
+              <p>ابدأ يوم الإشراف بنبرة متفائلة.</p>
+            </div>
+          </header>
+          <p class="leave-message__body" data-morning-text></p>
+        </article>
+        <article class="leave-message leave-message--list" data-announcement-card hidden>
+          <header class="leave-message__header">
+            <span class="leave-message__icon" aria-hidden="true">📣</span>
+            <div>
+              <h2>إعلانات اليوم</h2>
+              <p>تذكيرات وإرشادات سريعة للفريق.</p>
+            </div>
+          </header>
+          <ul class="leave-message__list" data-announcement-list></ul>
+        </article>
+      </section>
+
+      <div class="leave-tabs" data-tabs-host>
+        <button type="button" class="leave-tab is-active" data-tab-trigger="permissions" aria-pressed="true">
+          إدارة الطلبات
+        </button>
+        <button type="button" class="leave-tab" data-tab-trigger="attendance" aria-pressed="false">
+          سجلات الحضور
+        </button>
+      </div>
+
+      <div class="leave-panel is-active" data-tab-panel="permissions">
+        <section class="leave-card">
+          <form data-permission-form>
+          <div class="field">
+            <label for="leave-student-id">رقم الطالب</label>
+            <input id="leave-student-id" name="studentId" type="text" inputmode="numeric" autocomplete="off" required data-id-input />
+          </div>
+
+          <div class="student-preview" data-student-preview hidden>
+            <div>
+              <h2 data-student-name>—</h2>
+              <p data-student-meta>—</p>
+            </div>
+            <span class="student-status" data-student-status>جاهز للتسجيل</span>
+          </div>
+
+          <div class="field">
+            <label for="leave-reason">سبب الطلب</label>
+            <input id="leave-reason" name="reason" type="text" placeholder="مثلًا: تكليف إشرافي" required data-reason-input />
+          </div>
+
+          <div class="field">
+            <label for="leave-note">ملاحظات إضافية (اختياري)</label>
+            <textarea id="leave-note" name="note" rows="3" data-note-input></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary">تسجيل الطلب</button>
+            <p class="status" data-form-status></p>
+          </div>
+          </form>
+        </section>
+
+        <section class="leave-card">
+          <header class="leave-card__header">
+            <div>
+              <h2>سجل الطلبات لليوم</h2>
+              <p data-day-label>—</p>
+            </div>
+            <button type="button" class="ghost" data-refresh-today>تحديث القائمة</button>
+          </header>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>الوقت</th>
+                  <th>الطالب</th>
+                  <th>الرقم</th>
+                  <th>السبب</th>
+                  <th>ملاحظات</th>
+                </tr>
+              </thead>
+              <tbody data-permission-table></tbody>
+            </table>
+          </div>
+          <p class="form-hint" data-permission-summary></p>
+        </section>
+      </div>
+
+      <div class="leave-panel" data-tab-panel="attendance" hidden>
+        <section class="leave-card leave-card--panel">
+          <header class="leave-card__header">
+            <div>
+              <h2>سجلات الحضور المرسلة</h2>
+              <p data-attendance-report-label>لم يتم استلام أي تقرير بعد.</p>
+            </div>
+            <div class="report-actions">
+              <label class="report-select">
+                <span>التقرير الحالي</span>
+                <select data-attendance-report-select>
+                  <option value="">— لا توجد تقارير —</option>
+                </select>
+              </label>
+              <button type="button" class="ghost" data-refresh-reports>تحديث</button>
+            </div>
+          </header>
+
+          <div class="attendance-summary">
+            <div class="summary-chip is-present">
+              <span class="summary-chip__count" data-attendance-count="present">0</span>
+              <span class="summary-chip__label">حاضر</span>
+            </div>
+            <div class="summary-chip is-late">
+              <span class="summary-chip__count" data-attendance-count="late">0</span>
+              <span class="summary-chip__label">متأخر</span>
+            </div>
+            <div class="summary-chip is-absent">
+              <span class="summary-chip__count" data-attendance-count="absent">0</span>
+              <span class="summary-chip__label">غائب</span>
+            </div>
+            <div class="summary-chip is-total">
+              <span class="summary-chip__count" data-attendance-count="total">0</span>
+              <span class="summary-chip__label">إجمالي السجلات</span>
+            </div>
+          </div>
+
+          <div class="attendance-controls">
+            <div class="status-chips" data-status-filters>
+              <button type="button" class="chip is-active" data-status-toggle="present" aria-pressed="true">حاضر</button>
+              <button type="button" class="chip is-active" data-status-toggle="late" aria-pressed="true">متأخر</button>
+              <button type="button" class="chip is-active" data-status-toggle="absent" aria-pressed="true">غائب</button>
+            </div>
+            <div class="filters-grid">
+              <label>
+                الصف
+                <select data-filter-grade>
+                  <option value="">جميع الصفوف</option>
+                </select>
+              </label>
+              <label>
+                الفصل
+                <select data-filter-class>
+                  <option value="">جميع الفصول</option>
+                </select>
+              </label>
+              <label class="search-field">
+                البحث
+                <input type="search" placeholder="اسم أو رقم الطالب" data-filter-search />
+              </label>
+            </div>
+          </div>
+
+          <div class="attendance-exports">
+            <button type="button" class="ghost" data-attendance-export data-format="csv">CSV</button>
+            <button type="button" class="ghost" data-attendance-export data-format="html">HTML</button>
+            <button type="button" class="ghost" data-attendance-export data-format="pdf">PDF</button>
+            <button type="button" class="ghost" data-attendance-export data-format="print">طباعة</button>
+          </div>
+
+          <div class="table-wrapper table-wrapper--wide">
+            <table>
+              <thead>
+                <tr>
+                  <th>الحالة</th>
+                  <th>الاسم</th>
+                  <th>الرقم</th>
+                  <th>الصف</th>
+                  <th>الفصل</th>
+                  <th>وقت الوصول</th>
+                </tr>
+              </thead>
+              <tbody data-attendance-table></tbody>
+            </table>
+          </div>
+          <p class="form-hint" data-attendance-empty>لا توجد سجلات مطابقة للمعايير الحالية.</p>
+          <p class="status" data-report-status></p>
+        </section>
+      </div>
+
+      <section class="leave-tip" data-general-tip hidden>
+        <span class="leave-tip__icon" aria-hidden="true">✨</span>
+        <p class="leave-tip__text" data-general-tip-text></p>
+      </section>
+      </main>
+      <footer class="site-footer" role="contentinfo">© جميع الحقوق محفوظة | أ. هيثم الزهراني | Him.Art</footer>
+    </div>
+
+    <script src="js/theme.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="./js/env.js"></script>
+    <script type="module" src="js/store/backend-factory.js"></script>
+    <script type="module" src="js/backend-otherrest.js"></script>
+    <script type="module" src="js/backend-supabase.js"></script>
+    <script type="module" src="js/storage-ls.js"></script>
+    <script type="module" src="js/storage-sql.js"></script>
+    <script type="module" src="js/remote-sync.js"></script>
+    <script type="module" src="js/leave.js"></script>
+    <script type="module">
+      import { registerBackend } from './js/store/backend-factory.js';
+      import localBackend from './js/store/backend-localstorage.js';
+      import sqljsBackend from './js/store/backend-sqljs.js';
+      import supabaseBackend from './js/store/backend-supabase.js';
+
+      registerBackend(localBackend.name, localBackend);
+      registerBackend(sqljsBackend.name, sqljsBackend);
+      registerBackend(supabaseBackend.name, supabaseBackend);
+    </script>
+  </body>
+</html>

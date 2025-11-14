@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>حاضر | أوليآء الأمور</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+      (function () {
+        try {
+          var storageKey = 'hader:theme';
+          var defaultAccent = '#2f80ed';
+          var parsed = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          var mode = typeof parsed.mode === 'string' ? parsed.mode : 'system';
+          var accent = typeof parsed.accent === 'string' ? parsed.accent : defaultAccent;
+          if (!/^#?[0-9a-fA-F]{6}$/.test(accent)) {
+            accent = defaultAccent;
+          }
+          if (accent.charAt(0) !== '#') {
+            accent = '#' + accent;
+          }
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var theme = mode === 'dark' || (mode === 'system' && prefersDark) ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', theme);
+          document.documentElement.dataset.themeMode = mode;
+          var hex = accent.slice(1);
+          var r = parseInt(hex.slice(0, 2), 16);
+          var g = parseInt(hex.slice(2, 4), 16);
+          var b = parseInt(hex.slice(4, 6), 16);
+          if (!Number.isNaN(r) && !Number.isNaN(g) && !Number.isNaN(b)) {
+            document.documentElement.style.setProperty('--adm-accent', accent.toLowerCase());
+            document.documentElement.style.setProperty('--adm-accent-rgb', r + ', ' + g + ', ' + b);
+            var rn = r / 255;
+            var gn = g / 255;
+            var bn = b / 255;
+            var transform = function (channel) {
+              return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+            };
+            var luminance = 0.2126 * transform(rn) + 0.7152 * transform(gn) + 0.0722 * transform(bn);
+            var contrast = luminance > 0.55 ? '#041124' : '#ffffff';
+            document.documentElement.style.setProperty('--adm-accent-contrast', contrast);
+            document.documentElement.style.setProperty('--btn-text', contrast);
+            var mixComponent = function (component, target, ratio) {
+              return Math.round(component + (target - component) * ratio);
+            };
+            var toHex = function (value) {
+              var hex = value.toString(16);
+              return hex.length === 1 ? '0' + hex : hex;
+            };
+            var mixRatio = theme === 'dark' ? 0.32 : 0.18;
+            var mixTarget = theme === 'dark' ? 255 : 0;
+            var mixR = mixComponent(r, mixTarget, mixRatio);
+            var mixG = mixComponent(g, mixTarget, mixRatio);
+            var mixB = mixComponent(b, mixTarget, mixRatio);
+            document.documentElement.style.setProperty('--brand-accent', '#' + toHex(mixR) + toHex(mixG) + toHex(mixB));
+            document.documentElement.style.setProperty('--brand-accent-rgb', mixR + ', ' + mixG + ', ' + mixB);
+            var overlayAlpha = theme === 'dark' ? 0.28 : 0.22;
+            var overlayStrongAlpha = theme === 'dark' ? 0.36 : 0.3;
+            document.documentElement.style.setProperty('--surface-overlay', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayAlpha + ')');
+            document.documentElement.style.setProperty('--surface-overlay-strong', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayStrongAlpha + ')');
+          }
+        } catch (error) {
+          /* تجاهل أي أخطاء في القراءة المسبقة */
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/parents.css" />
+  </head>
+  <body>
+    <div class="page-root">
+      <main class="parents-shell">
+      <header class="parents-header">
+        <span class="badge">إصدار تجريبي</span>
+        <p class="parents-school" data-school-name hidden></p>
+        <h1>أوليآء الأمور</h1>
+        <p>
+          نعمل على تزويد أولياء الأمور برؤية واضحة حول حضور أبنائهم وتنبيهات التأخر.
+          ستكون هذه الواجهة نقطة التواصل السريعة مع المدرسة بمجرد إطلاقها.
+        </p>
+      </header>
+
+      <section class="parents-placeholder">
+        <div class="placeholder-card">
+          <div class="placeholder-icon" aria-hidden="true">👪</div>
+          <h2>جاري التطوير</h2>
+          <p>
+            ما زلنا نجمع أفضل الممارسات لتجربة ولي الأمر. ستحصل قريبًا على تقارير أسبوعية،
+            تنبيهات فورية، وملخصات قابلة للتنزيل حول التزام الطلاب بالدوام.
+          </p>
+          <p class="placeholder-note">
+            المساحة مجمّدة مؤقتًا لإتاحة الاختبارات الداخلية وضمان التكامل مع لوحة الإدارة.
+          </p>
+          <a class="back-link" href="index.html">العودة إلى البوابة الرئيسية</a>
+        </div>
+      </section>
+      </main>
+      <footer class="site-footer" role="contentinfo">© جميع الحقوق محفوظة | أ. هيثم الزهراني | Him.Art</footer>
+    </div>
+
+    <script src="js/theme.js"></script>
+    <script src="js/parents.js" defer></script>
+  </body>
+</html>

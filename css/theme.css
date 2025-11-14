@@ -1,0 +1,148 @@
+:root {
+  /* قيم افتراضية قبل تحديد السمة */
+  --adm-bg: #0b1320;
+  --adm-card: #0f1a2f;
+  --adm-text: #e9eef7;
+  --adm-muted: #a7b2c7;
+  --adm-border: #ffffff22;
+  --adm-accent: #2f80ed;
+  --adm-accent-rgb: 47, 128, 237;
+  --adm-accent-contrast: #ffffff;
+  --adm-surface: #0e1729;
+  --shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+  --btn-bg: var(--adm-accent);
+  --btn-text: var(--adm-accent-contrast);
+  --input-bg: transparent;
+  --input-text: var(--adm-text);
+  --surface-overlay: color-mix(in srgb, var(--adm-bg) 70%, transparent);
+  --surface-overlay-strong: color-mix(in srgb, var(--adm-bg) 85%, transparent);
+  --brand-primary: var(--adm-accent);
+  --brand-primary-rgb: var(--adm-accent-rgb);
+  --brand-primary-contrast: var(--adm-accent-contrast);
+  --brand-accent: color-mix(in srgb, var(--adm-accent) 70%, #ffffff 30%);
+  --brand-accent-rgb: 125, 170, 245;
+  --text-strong: var(--adm-text);
+  --text-muted: var(--adm-muted);
+  --text-inverse: var(--adm-accent-contrast);
+  --surface-page: var(--adm-bg);
+  --surface-page-elevated: color-mix(in srgb, var(--adm-card) 92%, transparent);
+  --surface-card: var(--adm-card);
+  --surface-card-shadow: var(--shadow);
+  --surface-card-border-width: 1px;
+  --surface-card-border-color: var(--adm-border);
+  --border-soft: var(--adm-border);
+  --font-sans: 'Tajawal', 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --hero-card-overlay-strong: color-mix(in srgb, var(--adm-accent) 90%, var(--adm-bg) 10%);
+  --hero-card-overlay-soft: color-mix(in srgb, var(--adm-accent) 70%, transparent);
+  --hero-card-glow-start: color-mix(in srgb, var(--adm-accent) 80%, transparent);
+  --hero-card-glow-end: color-mix(in srgb, var(--adm-accent) 55%, transparent);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --adm-bg: #f7f9fc;
+  --adm-card: #ffffff;
+  --adm-text: #0e1726;
+  --adm-muted: #64748b;
+  --adm-border: #0f172a22;
+  --adm-surface: #f0f4f9;
+  --shadow: 0 6px 16px rgba(2, 8, 23, 0.08);
+  --btn-bg: var(--adm-accent);
+  --btn-text: var(--adm-accent-contrast);
+  --input-bg: #ffffff;
+  --input-text: #0e1726;
+  --surface-overlay: color-mix(in srgb, var(--adm-accent) 14%, var(--adm-bg));
+  --surface-overlay-strong: color-mix(in srgb, var(--adm-accent) 22%, var(--adm-bg));
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --adm-bg: #0b1320;
+  --adm-card: #0f1a2f;
+  --adm-text: #e9eef7;
+  --adm-muted: #a7b2c7;
+  --adm-border: #ffffff14;
+  --adm-surface: #0e1729;
+  --shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+  --btn-bg: var(--adm-accent);
+  --btn-text: var(--adm-accent-contrast);
+  --input-bg: transparent;
+  --input-text: #e9eef7;
+  --surface-overlay: color-mix(in srgb, var(--adm-accent) 18%, var(--adm-bg));
+  --surface-overlay-strong: color-mix(in srgb, var(--adm-accent) 28%, var(--adm-bg));
+}
+
+body {
+  background: var(--adm-bg);
+  color: var(--adm-text);
+}
+
+.card {
+  background: var(--adm-card);
+  border: 1px solid var(--adm-border);
+  box-shadow: var(--shadow);
+}
+
+.btn,
+button.btn,
+button.primary,
+button.secondary,
+button.ghost,
+.btn-primary {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  border: 1px solid color-mix(in srgb, var(--btn-bg) 40%, transparent);
+}
+
+.btn.ghost,
+button.ghost,
+button.secondary,
+.btn-secondary {
+  background: color-mix(in srgb, var(--btn-bg) 12%, transparent);
+  color: var(--btn-bg);
+}
+
+input,
+select,
+textarea,
+.input {
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--adm-border);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--adm-muted) 70%, transparent);
+}
+
+.table-wrap,
+.table-container,
+.table-wrapper {
+  border: 1px solid var(--adm-border);
+  background: var(--adm-card);
+}
+
+.subtab[aria-selected="true"],
+.tab[aria-selected="true"],
+.pill[aria-selected="true"] {
+  outline: 2px solid color-mix(in oklab, var(--adm-accent) 30%, transparent);
+}
+
+a {
+  color: color-mix(in srgb, var(--adm-accent) 90%, var(--btn-text) 10%);
+}
+
+a:hover,
+a:focus {
+  color: var(--adm-accent);
+}
+
+[data-theme-preview] {
+  background: var(--adm-card);
+  color: var(--adm-text);
+  border: 1px solid var(--adm-border);
+}

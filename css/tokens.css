@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light dark;
+  --surface-page: var(--adm-bg);
+  --surface-card: var(--adm-card);
+  --surface-overlay: var(--surface-overlay, color-mix(in srgb, var(--adm-bg) 70%, transparent));
+  --surface-overlay-strong: var(--surface-overlay-strong, color-mix(in srgb, var(--adm-bg) 85%, transparent));
+  --border-soft: var(--adm-border);
+  --brand-primary: var(--adm-accent);
+  --brand-primary-rgb: var(--adm-accent-rgb, 47, 128, 237);
+  --brand-primary-contrast: var(--adm-accent-contrast, #ffffff);
+  --brand-accent: var(--brand-accent, color-mix(in srgb, var(--adm-accent) 70%, #ffffff 30%));
+  --brand-accent-rgb: var(--brand-accent-rgb, 125, 170, 245);
+  --text-strong: var(--adm-text);
+  --text-muted: var(--adm-muted);
+  --text-inverse: var(--adm-accent-contrast, #ffffff);
+  --shadow-soft: var(--shadow);
+  --surface-card-shadow: var(--shadow-soft);
+  --surface-card-border-width: var(--surface-card-border-width, 1px);
+  --surface-card-border-color: var(--surface-card-border-color, var(--adm-border));
+  --font-sans: var(--font-sans, 'Tajawal', 'Cairo', 'Helvetica Neue', Arial, sans-serif);
+  --radius-lg: var(--radius-lg, 24px);
+  --radius-md: var(--radius-md, 16px);
+  --radius-sm: var(--radius-sm, 12px);
+  --hero-card-image: var(
+    --hero-card-image,
+    url('https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&w=1200&q=80')
+  );
+  --hero-card-overlay-strong: var(--hero-card-overlay-strong, color-mix(in srgb, var(--adm-accent) 90%, var(--adm-bg) 10%));
+  --hero-card-overlay-soft: var(--hero-card-overlay-soft, color-mix(in srgb, var(--adm-accent) 70%, transparent));
+  --hero-card-glow-start: var(--hero-card-glow-start, color-mix(in srgb, var(--adm-accent) 80%, transparent));
+  --hero-card-glow-end: var(--hero-card-glow-end, color-mix(in srgb, var(--adm-accent) 55%, transparent));
+}
+
+.page-root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-footer {
+  margin-top: auto;
+  padding: 16px 24px;
+  background: var(--surface-card);
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
