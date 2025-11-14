@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>حاضر | لوحة المراقبة</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+  (function () {
+    var ACCENT_SCALE_STOPS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+    var ACCENT_SCALE_CONFIG = {
+      100: { lighten: 0.7 },
+      200: { lighten: 0.55 },
+      300: { lighten: 0.4 },
+      400: { lighten: 0.2 },
+      500: {},
+      600: { darken: 0.16 },
+      700: { darken: 0.28 },
+      800: { darken: 0.42 },
+      900: { darken: 0.58 }
+    };
+
+    function clamp01(value) {
+      if (!isFinite(value)) return 0;
+      if (value < 0) return 0;
+      if (value > 1) return 1;
+      return value;
+    }
+
+    function rgbToHex(r, g, b) {
+      function toHex(component) {
+        var clamped = Math.max(0, Math.min(255, Math.round(component)));
+        var hex = clamped.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      }
+
+      return '#' + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function formatRgb(r, g, b) {
+      return Math.round(r) + ', ' + Math.round(g) + ', ' + Math.round(b);
+    }
+
+    function rgbToHsl(r, g, b) {
+      var rn = clamp01(r / 255);
+      var gn = clamp01(g / 255);
+      var bn = clamp01(b / 255);
+      var max = Math.max(rn, gn, bn);
+      var min = Math.min(rn, gn, bn);
+      var delta = max - min;
+      var h = 0;
+
+      if (delta !== 0) {
+        if (max === rn) {
+          h = ((gn - bn) / delta) % 6;
+        } else if (max === gn) {
+          h = (bn - rn) / delta + 2;
+        } else {
+          h = (rn - gn) / delta + 4;
+        }
+      }
+
+      h = Math.round(((h * 60 + 360) % 360) * 1000) / 1000;
+      var l = clamp01((max + min) / 2);
+      var s = 0;
+      if (delta !== 0) {
+        s = delta / (1 - Math.abs(2 * l - 1));
+      }
+
+      return { h: h, s: clamp01(s), l: l };
+    }
+
+    function hslToRgb(h, s, l) {
+      var hue = ((h % 360) + 360) % 360 / 360;
+      var sat = clamp01(s);
+      var light = clamp01(l);
+
+      if (sat === 0) {
+        var value = Math.round(light * 255);
+        return { r: value, g: value, b: value };
+      }
+
+      var q = light < 0.5 ? light * (1 + sat) : light + sat - light * sat;
+      var p = 2 * light - q;
+
+      function hue2rgb(t) {
+        var temp = t;
+        if (temp < 0) temp += 1;
+        if (temp > 1) temp -= 1;
+        if (temp < 1 / 6) return p + (q - p) * 6 * temp;
+        if (temp < 1 / 2) return q;
+        if (temp < 2 / 3) return p + (q - p) * (2 / 3 - temp) * 6;
+        return p;
+      }
+
+      return {
+        r: Math.round(hue2rgb(hue + 1 / 3) * 255),
+        g: Math.round(hue2rgb(hue) * 255),
+        b: Math.round(hue2rgb(hue - 1 / 3) * 255)
+      };
+    }
+
+    function createAccentScale(baseHsl) {
+      var scale = {};
+      ACCENT_SCALE_STOPS.forEach(function (stop) {
+        var config = ACCENT_SCALE_CONFIG[stop] || {};
+        var lightness = baseHsl.l;
+        var saturation = baseHsl.s;
+
+        if (typeof config.lighten === 'number') {
+          var amountLight = clamp01(config.lighten);
+          lightness = clamp01(baseHsl.l + (1 - baseHsl.l) * amountLight);
+          saturation = clamp01(baseHsl.s * (1 - amountLight * 0.35));
+        } else if (typeof config.darken === 'number') {
+          var amountDark = clamp01(config.darken);
+          lightness = clamp01(baseHsl.l * (1 - amountDark));
+          saturation = clamp01(baseHsl.s * (1 + amountDark * 0.25));
+        }
+
+        var next = hslToRgb(baseHsl.h, saturation, lightness);
+        scale[stop] = {
+          hex: rgbToHex(next.r, next.g, next.b),
+          rgb: formatRgb(next.r, next.g, next.b)
+        };
+      });
+
+      return scale;
+    }
+
+    try {
+      var storageKey = 'hader:theme';
+      var defaultAccent = '#2f80ed';
+      var rawTheme = null;
+      try {
+        rawTheme = localStorage.getItem(storageKey);
+      } catch (storageError) {
+        rawTheme = null;
+      }
+
+      var parsed = null;
+      var mode = 'system';
+      var accent = defaultAccent;
+
+      if (typeof rawTheme === 'string' && rawTheme.length) {
+        if (rawTheme.trim().charAt(0) === '{') {
+          try {
+            parsed = JSON.parse(rawTheme);
+          } catch (parseError) {
+            parsed = null;
+            mode = rawTheme;
+          }
+        } else {
+          mode = rawTheme;
+        }
+      }
+
+      if (parsed && typeof parsed === 'object') {
+        if (typeof parsed.mode === 'string') {
+          mode = parsed.mode;
+        }
+        if (typeof parsed.accent === 'string') {
+          accent = parsed.accent;
+        }
+      }
+
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'system') {
+        mode = 'system';
+      }
+
+      var accentOverride = null;
+      try {
+        accentOverride = localStorage.getItem('hader:accent');
+      } catch (accentError) {
+        accentOverride = null;
+      }
+
+      if (typeof accentOverride === 'string' && accentOverride) {
+        accent = accentOverride;
+      }
+
+      if (!/^#?[0-9a-fA-F]{6}$/.test(accent)) {
+        accent = defaultAccent;
+      }
+
+      if (accent.charAt(0) !== '#') {
+        accent = '#' + accent;
+      }
+
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = mode === 'dark' || (mode === 'system' && prefersDark) ? 'dark' : 'light';
+      var root = document.documentElement;
+      var rootStyle = root.style;
+      root.setAttribute('data-theme', theme);
+      root.dataset.themeMode = mode;
+
+      var hex = accent.slice(1);
+      var r = parseInt(hex.slice(0, 2), 16);
+      var g = parseInt(hex.slice(2, 4), 16);
+      var b = parseInt(hex.slice(4, 6), 16);
+
+      if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+        return;
+      }
+
+      var accentLower = accent.toLowerCase();
+      rootStyle.setProperty('--adm-accent', accentLower);
+      rootStyle.setProperty('--adm-accent-rgb', formatRgb(r, g, b));
+      rootStyle.setProperty('--btn-bg', accentLower);
+
+      var rn = r / 255;
+      var gn = g / 255;
+      var bn = b / 255;
+      var transform = function (channel) {
+        return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+      };
+      var luminance = 0.2126 * transform(rn) + 0.7152 * transform(gn) + 0.0722 * transform(bn);
+      var contrast = luminance > 0.55 ? '#041124' : '#ffffff';
+      rootStyle.setProperty('--adm-accent-contrast', contrast);
+      rootStyle.setProperty('--btn-text', contrast);
+
+      var baseHsl = rgbToHsl(r, g, b);
+      var scale = createAccentScale(baseHsl);
+      scale[500] = { hex: accentLower, rgb: formatRgb(r, g, b) };
+
+      ACCENT_SCALE_STOPS.forEach(function (stop) {
+        var entry = scale[stop];
+        if (!entry) return;
+        rootStyle.setProperty('--adm-accent-' + stop, entry.hex);
+        rootStyle.setProperty('--adm-accent-' + stop + '-rgb', entry.rgb);
+      });
+      rootStyle.setProperty('--adm-accent-500', accentLower);
+      rootStyle.setProperty('--adm-accent-500-rgb', formatRgb(r, g, b));
+
+      var hoverHex = scale[600] ? scale[600].hex : accentLower;
+      var activeHex = scale[700] ? scale[700].hex : accentLower;
+      rootStyle.setProperty('--btn-bg-hover', hoverHex);
+      rootStyle.setProperty('--btn-bg-active', activeHex);
+
+      var mixComponent = function (component, target, ratio) {
+        return Math.round(component + (target - component) * ratio);
+      };
+      var toHex = function (value) {
+        var hexValue = value.toString(16);
+        return hexValue.length === 1 ? '0' + hexValue : hexValue;
+      };
+
+      var mixRatio = theme === 'dark' ? 0.32 : 0.18;
+      var mixTarget = theme === 'dark' ? 255 : 0;
+      var mixR = mixComponent(r, mixTarget, mixRatio);
+      var mixG = mixComponent(g, mixTarget, mixRatio);
+      var mixB = mixComponent(b, mixTarget, mixRatio);
+
+      rootStyle.setProperty('--brand-accent', '#' + toHex(mixR) + toHex(mixG) + toHex(mixB));
+      rootStyle.setProperty('--brand-accent-rgb', mixR + ', ' + mixG + ', ' + mixB);
+
+      var overlayAlpha = theme === 'dark' ? 0.28 : 0.22;
+      var overlayStrongAlpha = theme === 'dark' ? 0.36 : 0.3;
+      rootStyle.setProperty('--surface-overlay', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayAlpha + ')');
+      rootStyle.setProperty('--surface-overlay-strong', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayStrongAlpha + ')');
+    } catch (error) {
+      /* تجاهل أي أخطاء في القراءة المسبقة */
+    }
+  })();
+</script>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/supervisor.css" />
+    <script src="js/theme.js"></script>
+    <script defer src="./sql-wasm.js"></script>
+  </head>
+  <body>
+    <div class="page-root">
+      <div class="school-lock" data-school-lock hidden>
+        <div
+          class="school-lock__dialog"
+          data-school-lock-dialog
+          role="alertdialog"
+          aria-modal="true"
+          tabindex="-1"
+        >
+          <span class="school-lock__light" aria-hidden="true"></span>
+          <div class="school-lock__content">
+            <h2 class="school-lock__title">تم إيقاف المدرسة</h2>
+            <p class="school-lock__message" data-school-lock-message>راجع الدعم الفني</p>
+          </div>
+        </div>
+      </div>
+      <main class="supervisor-shell">
+      <header class="supervisor-header">
+        <div class="header-copy">
+          <span class="badge">متابعة فورية</span>
+          <p class="supervisor-school" data-school-name hidden></p>
+          <h1>لوحة المراقبة</h1>
+          <p>
+            راقب حالة حضور الطلاب لحظيًا، وأرسل تقارير المراقبة مباشرة إلى بوابة الإشراف.
+            يتم تحديث القوائم تلقائيًا بناءً على تسجيلات بوابة الحضور وإعدادات الوقت من الإدارة.
+          </p>
+        </div>
+        <div class="supervisor-meta">
+          <div class="meta-block">
+            <span class="meta-label">اليوم</span>
+            <span class="meta-value" data-day-label>—</span>
+          </div>
+          <div class="meta-block">
+            <span class="meta-label">آخر تحديث</span>
+            <span class="meta-value" data-last-update>—</span>
+          </div>
+          <div class="signal-indicator" data-store-indicator data-state="local">
+            <span class="signal-indicator__light" aria-hidden="true"></span>
+            <div class="signal-indicator__body">
+              <span class="signal-indicator__title">إشارة مضيئة</span>
+              <span class="signal-indicator__label" data-store-label>غير متصل</span>
+              <span class="signal-indicator__message" data-store-message>راجع الدعم الفني</span>
+            </div>
+            <div class="signal-indicator__controls">
+              <button type="button" class="ghost" data-refresh>تحديث الآن</button>
+            </div>
+          </div>
+        </div>
+        <div class="dispatch-panel">
+          <button type="button" class="primary" data-dispatch-now>
+            <span>إرسال التقارير</span>
+          </button>
+          <div class="dispatch-panel__schedule">
+            <label>
+              توقيت الإرسال التلقائي
+              <input type="time" data-dispatch-time value="08:00" />
+            </label>
+            <div class="dispatch-panel__actions">
+              <button type="button" class="ghost" data-dispatch-toggle>تفعيل الجدولة</button>
+              <p class="dispatch-panel__status" data-dispatch-status>الإرسال اليدوي فقط.</p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section class="supervisor-summary">
+        <div class="summary-card is-present">
+          <span class="summary-count" data-present-count>0</span>
+          <span class="summary-label">حاضر</span>
+        </div>
+        <div class="summary-card is-late">
+          <span class="summary-count" data-late-count>0</span>
+          <span class="summary-label">متأخر</span>
+        </div>
+        <div class="summary-card is-absent">
+          <span class="summary-count" data-absent-count>0</span>
+          <span class="summary-label">غائب</span>
+        </div>
+      </section>
+
+      <section class="supervisor-lists">
+        <article class="attendance-card" data-list="present">
+          <header class="attendance-card__header">
+            <div>
+              <h2>قائمة «حاضر»</h2>
+              <p><span data-count-present>0</span> طالب مسجل في الوقت المحدد.</p>
+            </div>
+            <div class="attendance-card__actions" data-export-controls="present">
+              <button type="button" data-export-button data-format="csv" data-list="present">CSV</button>
+              <button type="button" data-export-button data-format="html" data-list="present">HTML</button>
+              <button type="button" data-export-button data-format="pdf" data-list="present">PDF</button>
+              <button type="button" data-export-button data-format="print" data-list="present">طباعة</button>
+            </div>
+          </header>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الرقم</th>
+                  <th>الصف</th>
+                  <th>الفصل</th>
+                  <th>وقت الوصول</th>
+                </tr>
+              </thead>
+              <tbody data-list-body="present"></tbody>
+            </table>
+          </div>
+          <p class="attendance-empty" data-empty="present">لا يوجد طلاب في هذه القائمة حتى الآن.</p>
+          <p class="attendance-footnote">يتم إدراج الطلاب بحسب الصف ثم الفصل ثم الاسم أبجديًا.</p>
+        </article>
+
+        <article class="attendance-card" data-list="late">
+          <header class="attendance-card__header">
+            <div>
+              <h2>قائمة «متأخر»</h2>
+              <p><span data-count-late>0</span> طالب مسجل بعد وقت السماح.</p>
+            </div>
+            <div class="attendance-card__actions" data-export-controls="late">
+              <button type="button" data-export-button data-format="csv" data-list="late">CSV</button>
+              <button type="button" data-export-button data-format="html" data-list="late">HTML</button>
+              <button type="button" data-export-button data-format="pdf" data-list="late">PDF</button>
+              <button type="button" data-export-button data-format="print" data-list="late">طباعة</button>
+            </div>
+          </header>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الرقم</th>
+                  <th>الصف</th>
+                  <th>الفصل</th>
+                  <th>وقت الوصول</th>
+                </tr>
+              </thead>
+              <tbody data-list-body="late"></tbody>
+            </table>
+          </div>
+          <p class="attendance-empty" data-empty="late">لم يتم تسجيل أي تأخر حتى الآن.</p>
+          <p class="attendance-footnote">يتم إدراج الطلاب بحسب الصف ثم الفصل ثم الاسم أبجديًا.</p>
+        </article>
+
+        <article class="attendance-card" data-list="absent">
+          <header class="attendance-card__header">
+            <div>
+              <h2>قائمة «غائب»</h2>
+              <p><span data-count-absent>0</span> طالب لم يسجل حضوره بعد.</p>
+            </div>
+            <div class="attendance-card__actions" data-export-controls="absent">
+              <button type="button" data-export-button data-format="csv" data-list="absent">CSV</button>
+              <button type="button" data-export-button data-format="html" data-list="absent">HTML</button>
+              <button type="button" data-export-button data-format="pdf" data-list="absent">PDF</button>
+              <button type="button" data-export-button data-format="print" data-list="absent">طباعة</button>
+            </div>
+          </header>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الرقم</th>
+                  <th>الصف</th>
+                  <th>الفصل</th>
+                  <th>وقت الوصول</th>
+                </tr>
+              </thead>
+              <tbody data-list-body="absent"></tbody>
+            </table>
+          </div>
+          <p class="attendance-empty" data-empty="absent">لا يزال جميع الطلاب في قائمة الغائبين.</p>
+          <p class="attendance-footnote">يتم إدراج الطلاب بحسب الصف ثم الفصل ثم الاسم أبجديًا.</p>
+        </article>
+      </section>
+      </main>
+      <footer class="site-footer" role="contentinfo">© جميع الحقوق محفوظة | أ. هيثم الزهراني | Him.Art</footer>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="./js/env.js"></script>
+    <script type="module" src="js/store/backend-factory.js"></script>
+    <script type="module" src="js/backend-otherrest.js"></script>
+    <script type="module" src="js/backend-supabase.js"></script>
+    <script type="module" src="js/storage-ls.js"></script>
+    <script type="module" src="js/storage-sql.js"></script>
+    <script type="module" src="js/remote-sync.js"></script>
+    <script type="module" src="js/supervisor.js"></script>
+    <script type="module">
+      import { registerBackend } from './js/store/backend-factory.js';
+      import localBackend from './js/store/backend-localstorage.js';
+      import sqljsBackend from './js/store/backend-sqljs.js';
+      import supabaseBackend from './js/store/backend-supabase.js';
+
+      registerBackend(localBackend.name, localBackend);
+      registerBackend(sqljsBackend.name, sqljsBackend);
+      registerBackend(supabaseBackend.name, supabaseBackend);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>حاضر | بوابة الانطلاق</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+  (function () {
+    var ACCENT_SCALE_STOPS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+    var ACCENT_SCALE_CONFIG = {
+      100: { lighten: 0.7 },
+      200: { lighten: 0.55 },
+      300: { lighten: 0.4 },
+      400: { lighten: 0.2 },
+      500: {},
+      600: { darken: 0.16 },
+      700: { darken: 0.28 },
+      800: { darken: 0.42 },
+      900: { darken: 0.58 }
+    };
+
+    function clamp01(value) {
+      if (!isFinite(value)) return 0;
+      if (value < 0) return 0;
+      if (value > 1) return 1;
+      return value;
+    }
+
+    function rgbToHex(r, g, b) {
+      function toHex(component) {
+        var clamped = Math.max(0, Math.min(255, Math.round(component)));
+        var hex = clamped.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+      }
+
+      return '#' + toHex(r) + toHex(g) + toHex(b);
+    }
+
+    function formatRgb(r, g, b) {
+      return Math.round(r) + ', ' + Math.round(g) + ', ' + Math.round(b);
+    }
+
+    function rgbToHsl(r, g, b) {
+      var rn = clamp01(r / 255);
+      var gn = clamp01(g / 255);
+      var bn = clamp01(b / 255);
+      var max = Math.max(rn, gn, bn);
+      var min = Math.min(rn, gn, bn);
+      var delta = max - min;
+      var h = 0;
+
+      if (delta !== 0) {
+        if (max === rn) {
+          h = ((gn - bn) / delta) % 6;
+        } else if (max === gn) {
+          h = (bn - rn) / delta + 2;
+        } else {
+          h = (rn - gn) / delta + 4;
+        }
+      }
+
+      h = Math.round(((h * 60 + 360) % 360) * 1000) / 1000;
+      var l = clamp01((max + min) / 2);
+      var s = 0;
+      if (delta !== 0) {
+        s = delta / (1 - Math.abs(2 * l - 1));
+      }
+
+      return { h: h, s: clamp01(s), l: l };
+    }
+
+    function hslToRgb(h, s, l) {
+      var hue = ((h % 360) + 360) % 360 / 360;
+      var sat = clamp01(s);
+      var light = clamp01(l);
+
+      if (sat === 0) {
+        var value = Math.round(light * 255);
+        return { r: value, g: value, b: value };
+      }
+
+      var q = light < 0.5 ? light * (1 + sat) : light + sat - light * sat;
+      var p = 2 * light - q;
+
+      function hue2rgb(t) {
+        var temp = t;
+        if (temp < 0) temp += 1;
+        if (temp > 1) temp -= 1;
+        if (temp < 1 / 6) return p + (q - p) * 6 * temp;
+        if (temp < 1 / 2) return q;
+        if (temp < 2 / 3) return p + (q - p) * (2 / 3 - temp) * 6;
+        return p;
+      }
+
+      return {
+        r: Math.round(hue2rgb(hue + 1 / 3) * 255),
+        g: Math.round(hue2rgb(hue) * 255),
+        b: Math.round(hue2rgb(hue - 1 / 3) * 255)
+      };
+    }
+
+    function createAccentScale(baseHsl) {
+      var scale = {};
+      ACCENT_SCALE_STOPS.forEach(function (stop) {
+        var config = ACCENT_SCALE_CONFIG[stop] || {};
+        var lightness = baseHsl.l;
+        var saturation = baseHsl.s;
+
+        if (typeof config.lighten === 'number') {
+          var amountLight = clamp01(config.lighten);
+          lightness = clamp01(baseHsl.l + (1 - baseHsl.l) * amountLight);
+          saturation = clamp01(baseHsl.s * (1 - amountLight * 0.35));
+        } else if (typeof config.darken === 'number') {
+          var amountDark = clamp01(config.darken);
+          lightness = clamp01(baseHsl.l * (1 - amountDark));
+          saturation = clamp01(baseHsl.s * (1 + amountDark * 0.25));
+        }
+
+        var next = hslToRgb(baseHsl.h, saturation, lightness);
+        scale[stop] = {
+          hex: rgbToHex(next.r, next.g, next.b),
+          rgb: formatRgb(next.r, next.g, next.b)
+        };
+      });
+
+      return scale;
+    }
+
+    try {
+      var storageKey = 'hader:theme';
+      var defaultAccent = '#2f80ed';
+      var rawTheme = null;
+      try {
+        rawTheme = localStorage.getItem(storageKey);
+      } catch (storageError) {
+        rawTheme = null;
+      }
+
+      var parsed = null;
+      var mode = 'system';
+      var accent = defaultAccent;
+
+      if (typeof rawTheme === 'string' && rawTheme.length) {
+        if (rawTheme.trim().charAt(0) === '{') {
+          try {
+            parsed = JSON.parse(rawTheme);
+          } catch (parseError) {
+            parsed = null;
+            mode = rawTheme;
+          }
+        } else {
+          mode = rawTheme;
+        }
+      }
+
+      if (parsed && typeof parsed === 'object') {
+        if (typeof parsed.mode === 'string') {
+          mode = parsed.mode;
+        }
+        if (typeof parsed.accent === 'string') {
+          accent = parsed.accent;
+        }
+      }
+
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'system') {
+        mode = 'system';
+      }
+
+      var accentOverride = null;
+      try {
+        accentOverride = localStorage.getItem('hader:accent');
+      } catch (accentError) {
+        accentOverride = null;
+      }
+
+      if (typeof accentOverride === 'string' && accentOverride) {
+        accent = accentOverride;
+      }
+
+      if (!/^#?[0-9a-fA-F]{6}$/.test(accent)) {
+        accent = defaultAccent;
+      }
+
+      if (accent.charAt(0) !== '#') {
+        accent = '#' + accent;
+      }
+
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = mode === 'dark' || (mode === 'system' && prefersDark) ? 'dark' : 'light';
+      var root = document.documentElement;
+      var rootStyle = root.style;
+      root.setAttribute('data-theme', theme);
+      root.dataset.themeMode = mode;
+
+      var hex = accent.slice(1);
+      var r = parseInt(hex.slice(0, 2), 16);
+      var g = parseInt(hex.slice(2, 4), 16);
+      var b = parseInt(hex.slice(4, 6), 16);
+
+      if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
+        return;
+      }
+
+      var accentLower = accent.toLowerCase();
+      rootStyle.setProperty('--adm-accent', accentLower);
+      rootStyle.setProperty('--adm-accent-rgb', formatRgb(r, g, b));
+      rootStyle.setProperty('--btn-bg', accentLower);
+
+      var rn = r / 255;
+      var gn = g / 255;
+      var bn = b / 255;
+      var transform = function (channel) {
+        return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+      };
+      var luminance = 0.2126 * transform(rn) + 0.7152 * transform(gn) + 0.0722 * transform(bn);
+      var contrast = luminance > 0.55 ? '#041124' : '#ffffff';
+      rootStyle.setProperty('--adm-accent-contrast', contrast);
+      rootStyle.setProperty('--btn-text', contrast);
+
+      var baseHsl = rgbToHsl(r, g, b);
+      var scale = createAccentScale(baseHsl);
+      scale[500] = { hex: accentLower, rgb: formatRgb(r, g, b) };
+
+      ACCENT_SCALE_STOPS.forEach(function (stop) {
+        var entry = scale[stop];
+        if (!entry) return;
+        rootStyle.setProperty('--adm-accent-' + stop, entry.hex);
+        rootStyle.setProperty('--adm-accent-' + stop + '-rgb', entry.rgb);
+      });
+      rootStyle.setProperty('--adm-accent-500', accentLower);
+      rootStyle.setProperty('--adm-accent-500-rgb', formatRgb(r, g, b));
+
+      var hoverHex = scale[600] ? scale[600].hex : accentLower;
+      var activeHex = scale[700] ? scale[700].hex : accentLower;
+      rootStyle.setProperty('--btn-bg-hover', hoverHex);
+      rootStyle.setProperty('--btn-bg-active', activeHex);
+
+      var mixComponent = function (component, target, ratio) {
+        return Math.round(component + (target - component) * ratio);
+      };
+      var toHex = function (value) {
+        var hexValue = value.toString(16);
+        return hexValue.length === 1 ? '0' + hexValue : hexValue;
+      };
+
+      var mixRatio = theme === 'dark' ? 0.32 : 0.18;
+      var mixTarget = theme === 'dark' ? 255 : 0;
+      var mixR = mixComponent(r, mixTarget, mixRatio);
+      var mixG = mixComponent(g, mixTarget, mixRatio);
+      var mixB = mixComponent(b, mixTarget, mixRatio);
+
+      rootStyle.setProperty('--brand-accent', '#' + toHex(mixR) + toHex(mixG) + toHex(mixB));
+      rootStyle.setProperty('--brand-accent-rgb', mixR + ', ' + mixG + ', ' + mixB);
+
+      var overlayAlpha = theme === 'dark' ? 0.28 : 0.22;
+      var overlayStrongAlpha = theme === 'dark' ? 0.36 : 0.3;
+      rootStyle.setProperty('--surface-overlay', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayAlpha + ')');
+      rootStyle.setProperty('--surface-overlay-strong', 'rgba(' + r + ', ' + g + ', ' + b + ', ' + overlayStrongAlpha + ')');
+    } catch (error) {
+      /* تجاهل أي أخطاء في القراءة المسبقة */
+    }
+  })();
+</script>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/index.css" />
+    <script src="js/theme.js"></script>
+  </head>
+  <body>
+    <div class="page-root">
+      <main class="landing-shell">
+      <section class="hero-pane">
+        <div class="hero-content">
+          <span class="hero-pill">بوابة الانضباط المدرسي</span>
+          <p class="hero-school" data-school-name hidden></p>
+          <h1 class="hero-title">مرحبًا بك في «حاضر»</h1>
+          <p class="hero-description">
+            منصة حضور تعمل بالكامل من المتصفح لتخدم الطلاب، المشرفين، والإدارة.
+            ندير الحضور، الرسائل، وسياسات PIN من مكان واحد قابل للتوسع.
+          </p>
+        </div>
+        <p class="hero-tip" data-general-tip>
+          <span>✨</span>
+          <span>الانضباط يرفع مقامك — احضر بدري وكن قدوة.</span>
+        </p>
+      </section>
+      <section class="actions-pane">
+        <header class="actions-header">
+          <h2>اختر وجهتك</h2>
+          <p>تنتقل كل فئة لواجهتها المخصصة. تذكّر أن الطلاب يدخلون مباشرة دائمًا.</p>
+        </header>
+        <div class="actions-grid">
+          <button class="access-card" data-role="student" type="button">
+            <div class="access-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 4.5L20.5 9 12 13.5 3.5 9 12 4.5z"></path>
+                <path d="M6 11.2v2.6c0 2.6 2.9 4.7 6 4.7s6-2.1 6-4.7v-2.6"></path>
+                <path d="M12 13.5V18"></path>
+              </svg>
+            </div>
+            <div class="access-card__content">
+              <h3 class="access-card__title">بوابة الحضور</h3>
+              <p class="access-card__note">دخول مباشر للبوابة دون الحاجة إلى PIN.</p>
+            </div>
+          </button>
+          <button class="access-card" data-role="leave" type="button">
+            <div class="access-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 4h6" opacity="0.9"></path>
+                <path d="M8 4h8a2 2 0 012 2v12a2 2 0 01-2 2H8a2 2 0 01-2-2V6a2 2 0 012-2z"></path>
+                <path d="M9 11l2.2 2.2L15 9.5"></path>
+              </svg>
+            </div>
+            <div class="access-card__content">
+              <h3 class="access-card__title">بوابة الإشراف</h3>
+              <p class="access-card__note">إدارة الإشراف على الحضور وتحديث تقارير المتابعة.</p>
+            </div>
+          </button>
+          <button class="access-card" data-role="parents" type="button">
+            <div class="access-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="9" cy="9" r="3.2"></circle>
+                <circle cx="17" cy="10.5" r="2.7"></circle>
+                <path d="M4.5 19.5c0-3 2.7-5.5 4.5-5.5s4.5 2.5 4.5 5.5"></path>
+                <path d="M13.5 19.5c0-2.2 1.9-4 3.5-4s3.5 1.8 3.5 4"></path>
+              </svg>
+            </div>
+            <div class="access-card__content">
+              <h3 class="access-card__title">أوليآء الأمور</h3>
+              <p class="access-card__note">مجمدة حاليًا — جاري التطوير وإطلاق أدوات المتابعة قريبًا.</p>
+            </div>
+          </button>
+          <button class="access-card" data-role="supervisor" type="button">
+            <div class="access-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l7 3v5.6c0 4.7-3.1 8.9-7 10.4-3.9-1.5-7-5.7-7-10.4V6z"></path>
+                <path d="M9.5 12.5l2.2 2.2 3.8-4.3"></path>
+              </svg>
+            </div>
+            <div class="access-card__content">
+              <h3 class="access-card__title">لوحة المراقبة</h3>
+              <p class="access-card__note" data-pin-note="supervisor">سيتم التحقق من PIN عند الحاجة.</p>
+            </div>
+          </button>
+          <button class="access-card" data-role="admin" type="button">
+            <div class="access-card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"></path>
+                <path d="M19.4 9.6l1.1-1.9-2.2-2.2-1.9 1.1a6.9 6.9 0 00-2.4-1.1L13.5 2h-3l-0.5 3.5a6.9 6.9 0 00-2.4 1.1L5.7 5.5 3.5 7.7l1.1 1.9a6.6 6.6 0 000 2.8l-1.1 1.9 2.2 2.2 1.9-1.1a6.9 6.9 0 002.4 1.1L10.5 22h3l0.5-3.5a6.9 6.9 0 002.4-1.1l1.9 1.1 2.2-2.2-1.1-1.9a6.6 6.6 0 000-2.8z"></path>
+              </svg>
+            </div>
+            <div class="access-card__content">
+              <h3 class="access-card__title">لوحة الإدارة</h3>
+              <p class="access-card__note" data-pin-note="admin">سيتم التحقق من PIN عند الحاجة.</p>
+            </div>
+          </button>
+        </div>
+        <p class="footer-hint">
+          تعمل «حاضر» دون خوادم. يتم تخزين البيانات محليًا مع مزامنة ذكية بين التبويبات.
+        </p>
+      </section>
+      </main>
+      <footer class="site-footer" role="contentinfo">© جميع الحقوق محفوظة | أ. هيثم الزهراني | Him.Art</footer>
+    </div>
+
+    <aside class="session-hub" data-session-hub hidden>
+      <div class="session-hub__header">
+        <div class="session-hub__status">
+          <span class="session-hub__dot" aria-hidden="true"></span>
+          <span data-session-role>لم يتم تسجيل الدخول</span>
+        </div>
+        <button class="session-hub__logout" type="button" data-session-logout>تسجيل الخروج</button>
+      </div>
+      <p class="session-hub__message" data-session-message></p>
+      <div class="session-hub__actions">
+        <button class="session-hub__action" type="button" data-role-admin hidden>الانتقال إلى إدارة المدرسة</button>
+        <button class="session-hub__action" type="button" data-role-supervisor hidden>الانتقال إلى بوابة الإشراف</button>
+        <button class="session-hub__action" type="button" data-role-kiosk hidden>فتح الكشك</button>
+      </div>
+    </aside>
+
+    <section class="support-panel" data-support-panel hidden aria-label="لوحة دعم وإدارة المدارس">
+      <header class="support-panel__header">
+        <div>
+          <h2 class="support-panel__title">لوحة الدعم</h2>
+          <p class="support-panel__subtitle">إدارة المدارس والإشارات المضيئة</p>
+        </div>
+        <div class="support-panel__actions">
+          <button class="support-panel__action" type="button" data-support-refresh>تحديث القائمة</button>
+          <button class="support-panel__action" type="button" data-support-new>مدرسة جديدة</button>
+        </div>
+      </header>
+      <div class="support-panel__body">
+        <div class="support-panel__table">
+          <table class="support-table">
+            <thead>
+              <tr>
+                <th scope="col">المدرسة</th>
+                <th scope="col">المنطقة الزمنية</th>
+                <th scope="col">الحالة</th>
+                <th scope="col">الإشارة</th>
+                <th scope="col">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody data-support-schools-body>
+              <tr data-support-empty>
+                <td colspan="5">لا توجد مدارس مسجلة بعد.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <form class="support-form" data-support-form novalidate>
+          <h3 class="support-form__title" data-support-form-title>إضافة مدرسة جديدة</h3>
+          <input type="hidden" name="original_id" data-support-original-id />
+          <div class="support-form__grid">
+            <label class="support-form__field">
+              <span>المعرّف (ID)</span>
+              <input name="id" type="text" required data-support-id />
+            </label>
+            <label class="support-form__field">
+              <span>الاسم الداخلي</span>
+              <input name="name" type="text" required data-support-name />
+            </label>
+            <label class="support-form__field support-form__field--wide">
+              <span>الاسم الظاهر</span>
+              <input name="display_name" type="text" required data-support-display />
+            </label>
+            <label class="support-form__field">
+              <span>المنطقة الزمنية</span>
+              <input name="timezone" type="text" value="Asia/Riyadh" data-support-timezone />
+            </label>
+            <label class="support-form__field">
+              <span>الحالة</span>
+              <select name="enabled" data-support-enabled>
+                <option value="true">مفعّلة</option>
+                <option value="false">موقوفة</option>
+              </select>
+            </label>
+            <label class="support-form__field support-form__field--wide">
+              <span>رسالة الإيقاف (تظهر عند تعطيل المدرسة)</span>
+              <textarea
+                name="disabled_message"
+                rows="2"
+                data-support-disabled-message
+                placeholder="راجع الدعم الفني"
+              ></textarea>
+            </label>
+            <label class="support-form__field" data-support-backend-field>
+              <span>إشارة مضيئة</span>
+              <select name="data_backend" data-support-backend>
+                <option value="localstorage">LocalStorage</option>
+                <option value="sqljs">SQL.js (داخل المتصفح)</option>
+                <option value="supabase">Supabase</option>
+                <option value="rest">REST (موقعنا)</option>
+                <option value="other">مزود آخر (سنضبطه يدويًا)</option>
+              </select>
+            </label>
+            <div class="support-form__field support-form__field--stack" data-support-other-fields hidden>
+              <label>
+                رابط الخدمة (API)
+                <input name="other_api_base" type="url" placeholder="https://example.com/api" />
+              </label>
+              <label>
+                رمز الوصول (Token)
+                <input name="other_token" type="text" autocomplete="off" />
+              </label>
+              <label>
+                ملاحظات إضافية
+                <textarea name="other_note" rows="2"></textarea>
+              </label>
+            </div>
+          </div>
+          <div class="support-form__footer">
+            <div class="support-form__status" data-support-status aria-live="polite"></div>
+            <div class="support-form__actions">
+              <button class="support-form__submit" type="submit" data-support-save>حفظ المدرسة</button>
+              <button class="support-form__cancel" type="button" data-support-cancel>إلغاء</button>
+            </div>
+          </div>
+        </form>
+      </div>
+      <footer class="support-panel__footer">
+        <p>التحكم في الإشارة المضيئة يؤثر على جميع الواجهات (الإدارة، الإشراف، الكشك). يظهر هذا اللوح فقط للدعم ومسؤولي الموقع.</p>
+      </footer>
+    </section>
+
+    <button class="login-fab" type="button" data-login-open>
+      <span class="login-fab__label" data-login-label>دخول</span>
+    </button>
+
+    <div class="login-modal" data-login-modal hidden aria-hidden="true">
+      <div class="login-modal__backdrop" data-login-dismiss></div>
+      <div class="login-sheet" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
+        <header class="login-sheet__header">
+          <h3 class="login-sheet__title" id="login-modal-title">الدخول إلى «حاضر»</h3>
+          <button class="login-sheet__close" type="button" data-login-cancel aria-label="إغلاق">×</button>
+        </header>
+        <form class="login-form" data-login-form novalidate>
+          <fieldset class="login-form__methods">
+            <legend>طريقة التحقق</legend>
+            <label>
+              <input type="radio" name="provider" value="local" checked />
+              Local (تجربة)
+            </label>
+            <label>
+              <input type="radio" name="provider" value="rest" />
+              REST (الخادم الرئيسي)
+            </label>
+            <label>
+              <input type="radio" name="provider" value="supabase" />
+              Supabase
+            </label>
+          </fieldset>
+
+          <label class="login-form__field">
+            البريد أو المعرّف
+            <input name="username" type="text" autocomplete="username" required />
+          </label>
+
+          <label class="login-form__field">
+            كلمة المرور أو PIN
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+
+          <label class="login-form__field">
+            اختر الدور
+            <select name="role" required>
+              <option value="site_admin">site_admin</option>
+              <option value="support">support</option>
+              <option value="school_admin">school_admin</option>
+              <option value="supervisor_general">supervisor_general</option>
+              <option value="supervisor_class">supervisor_class</option>
+              <option value="kiosk_view">kiosk_view</option>
+            </select>
+          </label>
+
+          <label class="login-form__field" data-school-group hidden>
+            رقم المدرسة (school_id)
+            <input name="school_id" type="text" inputmode="numeric" autocomplete="one-time-code" />
+          </label>
+
+          <label class="login-form__checkbox">
+            <input type="checkbox" name="remember" checked />
+            تذكرني على هذا الجهاز
+          </label>
+
+          <p class="login-form__note" data-backend-note>وضع Local مناسب للتجارب. تأكد من تفعيل REST عند النشر.</p>
+
+          <div class="login-form__error" data-login-error role="alert" hidden></div>
+
+          <div class="login-form__actions">
+            <button class="login-form__submit" type="submit" data-login-submit>دخول</button>
+            <button class="login-form__cancel" type="button" data-login-cancel>إلغاء</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="toast-stack" data-toast-stack></div>
+
+    <div class="pin-modal" data-pin-modal aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="pin-sheet" role="document">
+        <div class="pin-sheet__header">
+          <h3 data-pin-title>التحقق من PIN</h3>
+          <button class="pin-sheet__close" type="button" data-pin-cancel aria-label="إغلاق">×</button>
+        </div>
+        <form data-pin-form>
+          <label>
+            أدخل PIN للوصول
+            <input name="pin" type="password" inputmode="numeric" autocomplete="one-time-code" required maxlength="12" />
+          </label>
+          <div class="pin-sheet__message" data-pin-message></div>
+          <div class="pin-sheet__actions">
+            <button class="pin-sheet__submit" type="submit" data-pin-submit>تأكيد</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script type="module" src="./js/env.js"></script>
+    <script type="module">
+      import { setSession, clearSession } from "./js/env.js";
+
+      window.HaderSupabase = {
+        async login({ email, password }) {
+          if (!window.sb) throw new Error("Supabase غير مهيأ");
+          const { data, error } = await window.sb.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+
+          const user = data.user;
+          const meta = user?.user_metadata || {};
+          const session = {
+            sub: user.id,
+            email: user.email,
+            role: meta.hader_role || "viewer",
+            school_id: meta.school_id || null,
+            at: Date.now()
+          };
+          setSession(session);
+          return session;
+        },
+        async logout() {
+          if (window.sb) await window.sb.auth.signOut();
+          clearSession();
+        }
+      };
+
+      // مثال ربط بسيط مع نموذج الدخول الحالي:
+      // document.querySelector('[data-login-form]')?.addEventListener('submit', async (e) => { ... })
+    </script>
+    <script src="js/school-config.js"></script>
+    <script src="js/force-login.js"></script>
+    <script src="js/app.js"></script>
+    <script type="module" src="js/store/backend-factory.js"></script>
+    <script type="module" src="js/backend-otherrest.js"></script>
+    <script type="module" src="js/backend-supabase.js"></script>
+    <script type="module" src="js/index.js"></script>
+    <script type="module" src="js/index-support.js"></script>
+    <script type="module" src="js/index-login.js"></script>
+    <script type="module">
+      import { registerBackend } from './js/store/backend-factory.js';
+      import localBackend from './js/store/backend-localstorage.js';
+      import sqljsBackend from './js/store/backend-sqljs.js';
+      import supabaseBackend from './js/store/backend-supabase.js';
+
+      registerBackend(localBackend.name, localBackend);
+      registerBackend(sqljsBackend.name, sqljsBackend);
+      registerBackend(supabaseBackend.name, supabaseBackend);
+    </script>
+  </body>
+</html>
