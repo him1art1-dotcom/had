@@ -1,311 +1,1025 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="utf-8" />
-  <title>حاضر — HADIR (v7)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="assets/hadir.png" />
-  <style>
-    :root{--header-h:100px;--brand:#5f7f71;--brand-600:#4a6458;--brand-700:#3d564b;--brand-300:#7fa193;--bg:#f5f7f6;--fg:#0f172a;--muted:#6b7280;--border:#e5e7eb;--card:#fff;--ok:#16a34a;--warn:#f59e0b;--err:#dc2626;--r:16px;--shadow:0 8px 24px rgba(0,0,0,.06)}
-    *{box-sizing:border-box}body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Arabic",Tahoma,Arial;color:var(--fg);background:var(--bg)}
-    .app{max-width:1280px;margin:auto;padding:20px;display:flex;flex-direction:column;gap:16px}
-    header.header{background:linear-gradient(180deg,var(--brand),var(--brand-600));color:#fff;border-radius:16px;box-shadow:var(--shadow);padding:8px 20px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;min-height:var(--header-h)}
-    .brand-img{height:var(--header-h);background:#fff;border-radius:12px}
-    nav.tabs{display:flex;gap:8px;flex-wrap:wrap}
-    .tab{background:transparent;color:#fff;border:2px solid var(--brand-700);padding:9px 14px;border-radius:12px;cursor:pointer;font-weight:700}
-    .tab[aria-selected="true"]{background:var(--brand-300);border-color:var(--brand-300)}
-    main{display:grid;grid-template-columns:1.25fr .75fr;gap:16px}
-    .card{background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}
-    .card .content{padding:16px}
-    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    input,select{width:100%;padding:12px;border:1px solid var(--border);border-radius:12px}
-    .btn{padding:10px 14px;border-radius:12px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:700}
-    .btn.primary{background:var(--brand);color:#fff;border-color:transparent}
-    .hint{color:var(--muted)}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-    .history{max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:12px}
-    .history table{width:100%;border-collapse:collapse}
-    .history th,.history td{padding:8px 10px;border-bottom:1px solid var(--border);font-size:.95rem}
-    .student-card{border:1px dashed var(--border);border-radius:14px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .ok-bg{background:#e7f7eb}.warn-bg{background:#fff5e6}.err-bg{background:#fde8e8}
-    .list{max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:12px}
-    .list-item{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid var(--border)}
-    .list-item:last-child{border-bottom:none}
-    .hl-green{background:#e6f7ee}.hl-red{background:#fde8e8}
-    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:#111;color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:opacity .2s}
-    .toast.show{opacity:.94}
-  </style>
-  <script src="./lib/sql-wasm.js"></script>
-  <script src="./lib/JsBarcode.all.min.js"></script>
-  <script src="./lib/qrcode.min.js"></script>
-</head>
-<body>
-  <div class="app">
-    <header class="header">
-      <div style="display:flex;align-items:center;gap:16px">
-        <img class="brand-img" src="assets/hadir.png"/>
-        <nav class="tabs" id="tabs">
-          <a href="./kiosk.html" target="_blank"
-   style="color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.25);
-          padding:8px 12px;border-radius:10px;display:inline-block;">
-  واجهة الطلاب
-</a>
 
-          <button class="tab" data-tab="attendance" aria-selected="true">تسجيل الحضور</button>
-          <button class="tab" data-tab="students" aria-selected="false">الطلاب</button>
-          <button class="tab" data-tab="reports" aria-selected="false">التقارير</button>
-          <button class="tab" data-tab="import" aria-selected="false">استيراد</button>
-          <button class="tab" data-tab="codes" aria-selected="false">الأكواد</button>
-          <button class="tab" data-tab="backup" aria-selected="false">نسخ احتياطي</button>
-          <button class="tab" data-tab="settings" aria-selected="false">الإعدادات</button>
-        </nav>
-      </div>
-      <div class="school">
-        <h1 id="schoolName" class="school-name">مدرسة الأمير سعود بن عبدالله بن جلوي المتوسطة</h1>
-        <div id="principalName" class="principal">مدير المدرسة: حسام بن محمد يار</div>
-      </div>
-    </header>
+import React, { useState, useCallback, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
+import { GoogleGenAI, Modality, Part } from "@google/genai";
 
-    <main>
-      <section class="card"><div class="content">
-        <section class="panel" data-panel="attendance">
-          <h2 class="row" style="justify-content:space-between"><span>تسجيل الحضور</span><span class="hint" id="attnClock">—</span></h2>
-          <div id="attnMount">…</div>
-        </section>
-        <section class="panel" data-panel="students" hidden><h2>الطلاب</h2><div id="studentsMount">…</div></section>
-        <section class="panel" data-panel="reports" hidden><h2>التقارير</h2><div id="reportsMount">…</div></section>
-        <section class="panel" data-panel="import" hidden><h2>استيراد</h2><div id="importMount">…</div></section>
-        <section class="panel" data-panel="codes" hidden><h2>الأكواد</h2><div id="codesMount">…</div></section>
-        <section class="panel" data-panel="backup" hidden><h2>نسخ احتياطي</h2><div id="backupMount">…</div></section>
-        <section class="panel" data-panel="settings" hidden><h2>الإعدادات</h2><div id="settingsMount">…</div></section>
-      </div></section>
-      <aside class="card"><div class="content">
-        <h2>ملخص الحالة</h2>
-        <div class="grid-3">
-          <div><div class="hint">عدد الطلاب</div><div id="statStudents" class="mono">—</div></div>
-          <div><div class="hint">إعدادات محفوظة</div><div id="statSettings" class="mono">—</div></div>
-          <div><div class="hint">آخر نسخة احتياطية</div><div id="statBackup" class="mono">—</div></div>
-        </div>
-        <div class="row" style="margin-top:10px"><button class="btn" id="btnTestDB">اختبار قاعدة البيانات</button></div>
-        <pre id="diag" class="mono" style="white-space:pre-wrap;margin-top:8px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:200px;overflow:auto"></pre>
-        <div class="list" id="todayList" style="margin-top:10px"></div>
-      </div></aside>
-    </main>
-    <footer id="footer" class="hint" style="text-align:center;padding:8px"></footer>
-    <div class="toast"></div>
-  </div>
+// --- START OF TYPES ---
+interface ImageFile {
+  id: string;
+  file: File;
+  preview: string;
+}
 
-<script>
-const $ = s => document.querySelector(s);
-const $all = s => Array.from(document.querySelectorAll(s));
-function toast(m){ const t=document.querySelector('.toast'); t.textContent=m; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1100); }
-function diag(m){ const d=$('#diag'); d.textContent += (d.textContent?'\n':'') + m; }
-function showPanel(name){ $all('section.panel').forEach(p=>p.hidden = (p.getAttribute('data-panel')!==name)); $all('.tab').forEach(t=>t.setAttribute('aria-selected', t.getAttribute('data-tab')===name?'true':'false')); }
-document.getElementById('tabs').addEventListener('click', e=>{ const b=e.target.closest('.tab'); if(!b) return; const k=b.getAttribute('data-tab'); showPanel(k); if(k==='attendance') renderAttendance(); if(k==='students') renderStudents(); if(k==='reports') renderReports(); if(k==='import') renderImport(); if(k==='codes') renderCodes(); if(k==='backup') renderBackup(); if(k==='settings') renderSettings(); });
+// --- START OF UTILS ---
+async function base64ToFile(base64: string, filename: string, mimeType: string): Promise<File> {
+    const res = await fetch(base64);
+    const blob = await res.blob();
+    return new File([blob], filename, { type: mimeType });
+}
 
-function nowRiyadhISO(){ const f=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}); const p=f.formatToParts(new Date()); const g=t=>p.find(x=>x.type===t)?.value||'00'; return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}:${g('second')}`; }
-function todayRiyadh(){ return nowRiyadhISO().slice(0,10); }
-function parseHM(h,m){ return (h*60)+m; }
-function timeToMinutes(iso){ const hh=+iso.slice(11,13), mm=+iso.slice(14,16); return parseHM(hh,mm); }
-function weekdayName(y,m,d){ const t=[0,3,2,5,0,3,5,1,4,6,2,4]; if(m<3) y-=1; const w=(y+Math.floor(y/4)-Math.floor(y/100)+Math.floor(y/400)+t[m-1]+d)%7; return ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][w]; }
-function weekdayNameFromISO(iso){ const y=+iso.slice(0,4), m=+iso.slice(5,7), d=+iso.slice(8,10); return weekdayName(y,m,d); }
-function dmLine(){ const p=new Intl.DateTimeFormat('ar-SA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit',weekday:'long',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date()); const g=t=>p.find(x=>x.type===t)?.value||''; return `اليوم: ${g('weekday')} ${g('year')}-${g('month')}-${g('day')} ${g('hour')}:${g('minute')} — الدمام`; }
-function sqlQuote(str){ return `'${String(str||'').replaceAll("'","''")}'`; }
-function normalizeId(s){ if(s==null) return ''; s=String(s).replace(/\uFEFF/g,''); s=s.replace(/[\r\n\t]/g,'').trim(); const map={'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9','۰':'0','۱':'1','۲':'2','۳':'3','۴':'4','۵':'5','۶':'6','۷':'7','۸':'8','۹':'9'}; return s.replace(/[٠-٩۰-۹]/g,d=>map[d]); }
+// --- START OF GEMINI SERVICE ---
+const USER_API_KEY_STORAGE_KEY = 'user_gemini_api_key';
 
-/* IndexedDB */
-const DB_NAME='attendance_local_sqlite', DB_STORE='sqlite_store_v1', DB_FILE_KEY='db_file_blob';
-function openIDB(){ return new Promise((res,rej)=>{ const req=indexedDB.open(DB_NAME,1); req.onupgradeneeded=()=>{ const idb=req.result; if(!idb.objectStoreNames.contains(DB_STORE)) idb.createObjectStore(DB_STORE); }; req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
-async function idbPut(k,v){ const idb=await openIDB(); return new Promise((res,rej)=>{ const tx=idb.transaction(DB_STORE,'readwrite'); tx.objectStore(DB_STORE).put(v,k); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); }); }
-async function idbGet(k){ const idb=await openIDB(); return new Promise((res,rej)=>{ const tx=idb.transaction(DB_STORE,'readonly'); const r=tx.objectStore(DB_STORE).get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function getGenAIClient(): GoogleGenAI {
+  const userApiKey = localStorage.getItem(USER_API_KEY_STORAGE_KEY);
+  const apiKey = userApiKey || process.env.API_KEY;
 
-/* sql.js init local→CDN */
-let SQL=null, db=null, _dbReady=false;
-async function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=()=>res(); s.onerror=()=>rej(new Error('فشل تحميل: '+src)); document.head.appendChild(s); }); }
-async function initSQL(){
-  diag('typeof initSqlJs: ' + (typeof window.initSqlJs));
-  if(typeof window.initSqlJs!=='function'){
-    diag('تحميل sql.js من CDN…'); await loadScript('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js');
+  if (!apiKey) {
+    throw new Error("API_KEY is not set. Please provide it in the settings or as an environment variable.");
   }
-  const isLocal = !!document.querySelector('script[src$="lib/sql-wasm.js"]');
-  const locate = (f)=> isLocal ? ('./lib/'+f) : ('https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/'+f);
-  const SQLlib = await window.initSqlJs({ locateFile: locate });
-  SQL = SQLlib;
-  const saved=await idbGet(DB_FILE_KEY);
-  db = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
-  db.exec(`PRAGMA foreign_keys=ON;
-    CREATE TABLE IF NOT EXISTS students(id INTEGER PRIMARY KEY AUTOINCREMENT,national_id TEXT UNIQUE,full_name TEXT,grade TEXT,class TEXT,guardian_phone TEXT);
-    CREATE TABLE IF NOT EXISTS settings(id INTEGER PRIMARY KEY CHECK (id=1),assembly_hour INTEGER,assembly_minute INTEGER,grace_minutes INTEGER,school_name TEXT,principal_name TEXT,dedupe_seconds INTEGER DEFAULT 60,sound_enabled INTEGER DEFAULT 1);
-    INSERT OR IGNORE INTO settings(id,assembly_hour,assembly_minute,grace_minutes,school_name,principal_name) VALUES(1,7,0,5,'مدرسة الأمير سعود بن عبدالله بن جلوي المتوسطة','حسام بن محمد يار');
-    CREATE TABLE IF NOT EXISTS attendance(id INTEGER PRIMARY KEY AUTOINCREMENT,national_id TEXT,ts TEXT,status TEXT,late_minutes INTEGER);
-    CREATE INDEX IF NOT EXISTS idx_attendance_nid_ts ON attendance(national_id, ts);`);
-  await persistDB(); _dbReady=true; diag('✅ sql.js جاهز — DB ready');
-}
-function exec(sql){ db.exec(sql); }
-async function persistDB(){ const data=db.export(); await idbPut(DB_FILE_KEY,data); updateStats(); }
-function lastInsertId(){ const r=db.exec('SELECT last_insert_rowid()'); return r?.[0]?.values?.[0]?.[0] ?? null; }
-function getStudentsCount(){ const r=db.exec('SELECT COUNT(*) c FROM students'); return r?.[0]?.values?.[0]?.[0] ?? 0; }
-function readSettings(){ const r=db.exec('SELECT * FROM settings WHERE id=1'); if(!r.length) return null; const row=r[0].values[0], cols=r[0].columns, o={}; cols.forEach((c,i)=>o[c]=row[i]); return o; }
 
-/* Attendance */
-const undoStack=[]; let _attnTimer=null;
-function updateUndoBtn(){ const b=$('#btnUndo'); if(b) b.disabled = undoStack.length===0; }
-function undoLast(){ try{ const id=undoStack.pop(); if(!id) return; exec(`DELETE FROM attendance WHERE id=${id}`); persistDB(); updateUndoBtn(); const row=document.querySelector(`tr[data-id="${id}"]`); if(row) row.remove(); toast('تم التراجع'); }catch(e){ diag('❌ undoLast: '+e.message); } }
-function renderAttendance(){
-  const mount=$('#attnMount');
-  const tick=()=>{ $('#attnClock').textContent=dmLine(); }; tick(); if(_attnTimer) clearInterval(_attnTimer); _attnTimer=setInterval(tick,60000);
-  if(!_dbReady){ mount.textContent='بانتظار التهيئة…'; return; }
-  mount.innerHTML=`
-    <div class="grid-2">
-      <div>
-        <div class="row">
-          <input type="text" id="barcode" class="mono" placeholder="مثال: 1234567890" autocomplete="off" inputmode="numeric">
-          <button class="btn" id="btnClear">مسح</button>
-          <button class="btn" id="btnUndo" disabled>تراجع</button>
+  return new GoogleGenAI({ apiKey });
+}
+
+function isUsingUserApiKey(): boolean {
+  return localStorage.getItem(USER_API_KEY_STORAGE_KEY) !== null;
+}
+
+async function fileToGenerativePart(file: File): Promise<Part> {
+  const base64EncodedDataPromise = new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+  return {
+    inlineData: {
+      data: await base64EncodedDataPromise,
+      mimeType: file.type,
+    },
+  };
+}
+
+async function generateDescriptionForImage(image: File): Promise<string> {
+    const ai = getGenAIClient();
+    const imagePart = await fileToGenerativePart(image);
+    const textPart = {
+        text: "صف صورة المنتج هذه بطريقة تكون بمثابة وصف ممتاز لمولد صور الذكاء الاصطناعي لإنشاء لقطة منتج احترافية. كن مبدعًا واقترح خلفية وإضاءة مثيرة للاهتمام. على سبيل المثال: 'صورة فوتوغرافية احترافية للمنتج على سطح من خشب البلوط الداكن، مع إضاءة جانبية ناعمة ودافئة تخلق توهجًا لطيفًا على قوامه.'"
+    };
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [imagePart, textPart] }
+    });
+
+    return response.text;
+}
+
+async function generateProductImage(images: File[], prompt: string): Promise<string> {
+    const ai = getGenAIClient();
+    const imageParts = await Promise.all(images.map(fileToGenerativePart));
+    const textPart = { text: prompt };
+
+    const contents = {
+        parts: [...imageParts, textPart]
+    };
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents,
+        config: {
+            responseModalities: [Modality.IMAGE],
+        },
+    });
+
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+            return part.inlineData.data;
+        }
+    }
+
+    throw new Error("No image was generated by the API.");
+}
+
+async function refineImage(image: File, prompt: string): Promise<string> {
+    const ai = getGenAIClient();
+    const imagePart = await fileToGenerativePart(image);
+    const textPart = { text: prompt };
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: { parts: [imagePart, textPart] },
+        config: {
+            responseModalities: [Modality.IMAGE],
+        },
+    });
+
+    for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+            return part.inlineData.data;
+        }
+    }
+    
+    throw new Error("Image refinement failed.");
+}
+
+
+// --- START OF ICONS ---
+type IconProps = {
+  className?: string;
+};
+
+const UploadIcon: React.FC<IconProps> = ({ className }) => (
+  <svg className={className} aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+    <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2" />
+  </svg>
+);
+
+const TrashIcon: React.FC<IconProps> = ({ className }) => (
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
+
+const SparklesIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M5 2a1 1 0 00-1 1v1.586l-2.707 2.707a1 1 0 000 1.414l2.707 2.707V13a1 1 0 001 1h1.586l2.707 2.707a1 1 0 001.414 0l2.707-2.707H15a1 1 0 001-1v-1.586l2.707-2.707a1 1 0 000-1.414L16.586 5.586V4a1 1 0 00-1-1h-1.586l-2.707-2.707a1 1 0 00-1.414 0L7.586 2H6a1 1 0 00-1-1zM10 12a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+    </svg>
+);
+
+const PhotoIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+    </svg>
+);
+
+const CutIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7.843 1.802a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 0 1-1.06 0l-2.25-2.25a.75.75 0 0 1 0-1.06l2.25-2.25Zm-2.625 2.625 2.625-2.625m0 5.25-2.625-2.625m2.625 2.625-2.625 2.625m0-5.25 2.625 2.625M17.657 7.843a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1 0 1.06l-2.25 2.25a.75.75 0 0 1-1.06 0l-2.25-2.25a.75.75 0 0 1 0-1.06l2.25-2.25Zm-2.625 2.625 2.625-2.625m0 5.25-2.625-2.625m2.625 2.625-2.625 2.625m0-5.25 2.625 2.625M3.101 18.198a2.25 2.25 0 0 0 3.182 0l1.238-1.238 2.33-2.33a.75.75 0 0 1 1.061 0l2.33 2.33 3.469-3.469a2.25 2.25 0 0 0-3.182-3.182l-3.47 3.47-2.33-2.33a.75.75 0 0 1 0-1.061l2.33-2.33 1.238-1.238a2.25 2.25 0 0 0 0-3.182L9.48 3.101a2.25 2.25 0 0 0-3.182 0L3.1 9.299a2.25 2.25 0 0 0 0 3.182l3.198 3.198-3.198 3.198Z" />
+    </svg>
+);
+
+const WandIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.475 2.118 2.25 2.25 0 0 1-2.475-2.118c0-.493.212-.962.57-1.32a3 3 0 0 0 4.38-1.322a3 3 0 0 0 .577-1.318 2.25 2.25 0 0 1 2.34-1.884 2.25 2.25 0 0 1 2.34 1.884 3 3 0 0 0 .577 1.318a3 3 0 0 0 4.38 1.322c.358.358.57.827.57 1.32a2.25 2.25 0 0 1-2.475 2.118 2.25 2.25 0 0 1-2.475-2.118a3 3 0 0 0-5.78-1.128Zm0 0a3 3 0 0 0-5.78 1.128m5.78-1.128a3 3 0 0 1 5.78 1.128m-5.78-1.128v-5.172a2.25 2.25 0 0 1 .166-2.983l.53-.53a2.25 2.25 0 0 0 .166-2.983l-.53-.53a2.25 2.25 0 0 0-2.982-.166l-.53.53a2.25 2.25 0 0 0-2.983.166l-.53-.53a2.25 2.25 0 0 0-2.982.166l.53.53a2.25 2.25 0 0 0 .166 2.983l.53.53a2.25 2.25 0 0 1 .166 2.983v5.172" />
+    </svg>
+);
+
+const SparklesIconV2: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
+    </svg>
+);
+
+const DownloadIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+  </svg>
+);
+
+const DiamondIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.324h5.364a.562.562 0 0 1 .321.988l-4.204 3.192a.563.563 0 0 0-.182.557l1.528 4.718a.562.562 0 0 1-.82.623l-3.876-2.801a.563.563 0 0 0-.68 0L6.22 21.01a.562.562 0 0 1-.82-.623l1.528-4.718a.563.563 0 0 0-.182-.557l-4.204-3.192a.563.563 0 0 1 .321-.988h5.364a.563.563 0 0 0 .475-.324L11.48 3.5Z" />
+  </svg>
+);
+
+const GearIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-1.007 1.11-.111l.281.281c.099.099.231.157.372.157h.423c.394 0 .755.23.91.592l.147.345a.65.65 0 0 0 1.012.353l.383-.245a.652.652 0 0 1 .82.26l.208.364a.652.652 0 0 1-.027.81l-.282.282a.65.65 0 0 0 0 .916l.282.282a.652.652 0 0 1 .027.81l-.208.364a.652.652 0 0 1-.82.26l-.383-.245a.65.65 0 0 0-1.012.353l-.147.345a.65.65 0 0 1-.91.592h-.423c-.141 0-.273.058-.372.157l-.281.281a.652.652 0 0 1-1.11-.111l-.091-.542a.651.651 0 0 0-.52-1.026l-.423-.112a.65.65 0 0 1-.418-.68l.092-.542a.65.65 0 0 0 .04-1.026l-.423-.112a.651.651 0 0 1-.418-.68l.092-.542a.651.651 0 0 0 .52-1.026l.423-.112a.65.65 0 0 1 .418-.68l-.092-.542a.65.65 0 0 0-.04-1.026l.423-.112a.651.651 0 0 1 .418-.68l-.091-.542Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+  </svg>
+);
+
+const EyeIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.644l7.657-7.657a1.012 1.012 0 0 1 1.431 0l7.657 7.657a1.012 1.012 0 0 1 0 .644l-7.657 7.657a1.012 1.012 0 0 1-1.431 0l-7.657-7.657Z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+  </svg>
+);
+
+const EyeSlashIcon: React.FC<IconProps> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.243 4.243-4.243-4.243" />
+  </svg>
+);
+
+const CloseIcon: React.FC<IconProps> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+);
+
+
+// --- START OF COMPONENTS ---
+
+// Footer.tsx
+const Footer: React.FC = () => {
+  return (
+    <footer className="py-4 mt-8">
+      <div className="container mx-auto text-center text-gray-500 text-sm">
+        <p>&copy; {new Date().getFullYear()} استوديو تصوير المنتجات بالذكاء الاصطناعي. جميع الحقوق محفوظة.</p>
+      </div>
+    </footer>
+  );
+};
+
+// Header.tsx
+interface HeaderProps {
+  onSettingsClick: () => void;
+}
+const Header: React.FC<HeaderProps> = ({ onSettingsClick }) => {
+  return (
+    <header className="py-4 md:py-6 relative">
+      <div className="container mx-auto text-center">
+        <h1 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 text-transparent bg-clip-text">
+          استوديو تصوير المنتجات بالذكاء الاصطناعي
+        </h1>
+        <p className="text-gray-400 mt-2 text-md md:text-lg">
+          حوّل صور منتجاتك إلى روائع احترافية.
+        </p>
+      </div>
+      <button 
+        onClick={onSettingsClick}
+        className="absolute top-1/2 -translate-y-1/2 right-4 md:right-8 p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full transition-colors"
+        aria-label="الإعدادات"
+        title="الإعدادات"
+      >
+        <GearIcon className="w-6 h-6" />
+      </button>
+    </header>
+  );
+};
+
+// ImageUploader.tsx
+interface ImageUploaderProps {
+  onUpload: (files: ImageFile[]) => void;
+  maxFiles: number;
+  imageFiles: ImageFile[];
+  onRefine: (imageId: string, refinementType: 'remove-background' | 'enhance' | 'cleanup') => void;
+  refinementState: { [key: string]: boolean };
+}
+const ImageUploader: React.FC<ImageUploaderProps> = ({ 
+  onUpload, 
+  maxFiles,
+  imageFiles, 
+  onRefine,
+  refinementState
+}) => {
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleFiles = useCallback((files: FileList | null) => {
+    if (!files) return;
+
+    const newFiles = Array.from(files)
+      .filter(file => file.type.startsWith('image/'))
+      .slice(0, maxFiles - imageFiles.length);
+      
+    const newImageFiles: ImageFile[] = newFiles.map(file => ({
+      id: `${file.name}-${Date.now()}`,
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+    
+    const updatedFiles = [...imageFiles, ...newImageFiles];
+    onUpload(updatedFiles);
+  }, [imageFiles, maxFiles, onUpload]);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+  
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    handleFiles(e.dataTransfer.files);
+  };
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(e.target.files);
+  };
+  
+  const removeImage = (id: string) => {
+    const imageToRemove = imageFiles.find(img => img.id === id);
+    if (imageToRemove) {
+      URL.revokeObjectURL(imageToRemove.preview);
+    }
+    const updatedFiles = imageFiles.filter(img => img.id !== id);
+    onUpload(updatedFiles);
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-300 mb-2">١. رفع صور المنتج (حتى {maxFiles} صور)</label>
+      <div 
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        className={`relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-300 ${isDragging ? 'border-indigo-500 bg-gray-700/50' : 'border-gray-600 hover:border-gray-500 bg-gray-800'}`}
+      >
+        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+          <UploadIcon className="w-10 h-10 mb-3 text-gray-400" />
+          <p className="mb-2 text-sm text-gray-400"><span className="font-semibold">انقر للرفع</span> أو اسحب وأفلت</p>
+          <p className="text-xs text-gray-500">PNG, JPG, or WEBP</p>
         </div>
-        <div class="hint" style="margin-top:6px">${dmLine()}</div>
-        <div id="card" class="student-card" style="display:none;margin-top:10px"></div>
+        <input id="dropzone-file" type="file" className="absolute w-full h-full opacity-0 cursor-pointer" multiple accept="image/*" onChange={handleFileChange} disabled={imageFiles.length >= maxFiles} />
       </div>
-      <div>
-        <div class="history"><table><thead><tr><th>اليوم</th><th>الوقت</th><th>الاسم</th><th>الهوية</th><th>الصف</th><th>الفصل</th><th>الحالة</th><th>تأخر</th></tr></thead><tbody id="hist"></tbody></table></div>
-      </div>
-    </div>`;
-  const input=$('#barcode'); input && input.focus();
-  input && input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); handleScan(input.value.trim()); input.value=''; } });
-  $('#btnClear') && ($('#btnClear').onclick=()=>{ input.value=''; input.focus(); });
-  $('#btnUndo') && ($('#btnUndo').onclick=undoLast);
-}
-function findStudentRow(nid){ const r=db.exec(`SELECT full_name, grade, class FROM students WHERE national_id=${sqlQuote(nid)}`); if(!r.length) return null; const v=r[0].values[0]; return { full_name:v[0], grade:v[1], class:v[2] } }
-function getLastAttendance(nid){ const r=db.exec(`SELECT id, ts FROM attendance WHERE national_id=${sqlQuote(nid)} ORDER BY ts DESC LIMIT 1`); if(!r.length) return null; const v=r[0].values[0]; return { id:v[0], ts:v[1] } }
-function isDuplicateWithinWindow(nid, whenISO){ const last=getLastAttendance(nid); if(!last) return false; if(last.ts.slice(0,10)!==whenISO.slice(0,10)) return false; const s=readSettings(); const diffMin=Math.abs(timeToMinutes(whenISO)-timeToMinutes(last.ts)); const windowSec = s?.dedupe_seconds ?? 60; return (diffMin*60) < windowSec; }
-function showCard({notFound, duplicate, nid, when, full_name, grade, class:klass, status, late}){
-  const el=$('#card'); el.style.display='grid'; const dt=when.slice(0,10)+' '+when.slice(11,16);
-  if(notFound){ el.className='student-card err-bg'; el.innerHTML=`<div><div class="hint">الهوية</div><div class="mono">${nid}</div><div class="hint" style="margin-top:6px">الوقت</div><div class="mono">${dt}</div></div><div><span class="stat-chip" style="background:#fde8e8;color:#b91c1c">غير موجود</span></div>`; return; }
-  if(duplicate){ el.className='student-card warn-bg'; el.innerHTML=`<div><div class="hint">الاسم</div><div style="font-weight:700">${full_name}</div><div class="hint" style="margin-top:6px">الصف/الفصل</div><div>${grade} — ${klass}</div></div><div><div class="hint">الهوية</div><div class="mono">${nid}</div><div class="hint" style="margin-top:6px">الوقت</div><div class="mono">${dt}</div><div style="margin-top:8px"><span class="stat-chip" style="background:#fff5e6;color:#b45309">مكرر — تم تجاهله</span></div></div>`; return; }
-  const chip = status==='on_time'? `<span class="stat-chip" style="background:#e7f7eb;color:#166534">حاضر في الوقت</span>` : `<span class="stat-chip" style="background:#fff5e6;color:#b45309">متأخر</span>`;
-  el.className = status==='on_time' ? 'student-card ok-bg' : 'student-card warn-bg';
-  el.innerHTML=`<div><div class="hint">الاسم</div><div style="font-weight:700">${full_name}</div><div class="hint" style="margin-top:6px">الصف/الفصل</div><div>${grade} — ${klass}</div></div><div><div class="hint">الهوية</div><div class="mono">${nid}</div><div class="hint" style="margin-top:6px">الوقت</div><div class="mono">${dt}</div><div style="margin-top:8px">${chip} ${status==='late'?`· تأخر <b>${late}</b> دقيقة`:''}</div></div>`;
-}
-function pushHistoryRow({id, when, nid, name, grade, class:klass, status, late}){
-  const tr=document.createElement('tr'); tr.dataset.id=id;
-  const dt=when.slice(11,16); const day=weekdayNameFromISO(when);
-  tr.innerHTML=`<td>${day}</td><td class="mono">${dt}</td><td>${name||'—'}</td><td class="mono">${nid}</td><td>${grade||'—'}</td><td>${klass||'—'}</td><td>${status==='on_time'?'حاضر':'متأخر'}</td><td>${status==='late'?late:'—'}</td>`;
-  $('#hist').prepend(tr);
-  addTodayListItem({name, nid, status});
-}
-function handleScan(raw){
-  if(!_dbReady) return alert('قاعدة البيانات لم تُجهّز بعد');
-  if(!raw) return; const nid=normalizeId(raw);
-  const s=readSettings()||{assembly_hour:7,assembly_minute:0,grace_minutes:5};
-  const when=nowRiyadhISO(); const checkMin=timeToMinutes(when);
-  const startMin=parseHM(s.assembly_hour,s.assembly_minute); const lateBorder=startMin+(s.grace_minutes||0);
-  let status='on_time', late=0; if(checkMin>lateBorder){ status='late'; late=checkMin-startMin; }
-  const st=findStudentRow(nid);
-  if(!st){ showCard({notFound:true,nid,when}); toast('⚠️ غير موجود'); return; }
-  if(isDuplicateWithinWindow(nid,when)){ showCard({duplicate:true,nid,when,...st}); toast('تم تجاهل التكرار'); return; }
-  exec(`INSERT INTO attendance(national_id, ts, status, late_minutes) VALUES(${sqlQuote(nid)}, ${sqlQuote(when)}, ${sqlQuote(status)}, ${late})`);
-  const insId=lastInsertId(); persistDB(); undoStack.push(insId); updateUndoBtn();
-  showCard({ ...st, nid, when, status, late }); pushHistoryRow({ id:insId, when, nid, name:st.full_name, grade:st.grade, class:st.class, status, late });
-}
 
-/* Students */
-function renderStudents(){
-  if(!_dbReady){ $('#studentsMount').textContent='بانتظار التهيئة…'; return; }
-  $('#studentsMount').innerHTML = `
-    <div class="row">
-      <input type="text" id="q" placeholder="بحث بالاسم أو الهوية">
-      <select id="fGrade"><option value="">كل الصفوف</option></select>
-      <select id="fClass"><option value="">كل الفصول</option></select>
-      <button class="btn" id="btnSearch">بحث</button>
-      <button class="btn" id="btnShowAll">عرض الكل</button>
+      {imageFiles.length > 0 && (
+        <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4">
+          {imageFiles.map(imageFile => {
+            const isRefining = refinementState[imageFile.id];
+            return (
+              <div key={imageFile.id} className="relative group">
+                <img src={imageFile.preview} alt="preview" className={`w-full h-24 object-cover rounded-lg transition-opacity ${isRefining ? 'opacity-30' : ''}`} />
+                {isRefining && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-6 h-6 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+                  </div>
+                )}
+                {!isRefining && (
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                    <button onClick={() => onRefine(imageFile.id, 'remove-background')} title="إزالة الخلفية" className="p-1.5 bg-gray-700/80 rounded-full text-white hover:bg-indigo-600"><CutIcon className="w-4 h-4" /></button>
+                    <button onClick={() => onRefine(imageFile.id, 'enhance')} title="تحسين الإضاءة والألوان" className="p-1.5 bg-gray-700/80 rounded-full text-white hover:bg-indigo-600"><WandIcon className="w-4 h-4" /></button>
+                    <button onClick={() => onRefine(imageFile.id, 'cleanup')} title="إزالة الشوائب" className="p-1.5 bg-gray-700/80 rounded-full text-white hover:bg-indigo-600"><SparklesIconV2 className="w-4 h-4" /></button>
+                  </div>
+                )}
+                <button 
+                  onClick={() => removeImage(imageFile.id)}
+                  className="absolute top-1 right-1 p-1 bg-red-600/70 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                  disabled={isRefining}
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
-    <div class="list" id="stuList" style="margin-top:10px"></div>
-    <div class="divider"></div>
-    <h3>تعديل/إضافة طالب</h3>
-    <div class="grid-3">
-      <div><label>الهوية</label><input id="s_nid"></div>
-      <div><label>الاسم</label><input id="s_name"></div>
-      <div><label>الصف</label><input id="s_grade"></div>
-      <div><label>الفصل</label><input id="s_class"></div>
-      <div><label>جوال ولي الأمر</label><input id="s_phone"></div>
-      <div style="align-self:end" class="row">
-        <button class="btn primary" id="btnSaveStu">حفظ</button>
-        <button class="btn" id="btnDeleteStu">حذف</button>
+  );
+};
+
+// PostGenerationEditor.tsx
+interface PostGenerationEditorProps {
+  onEdit: (prompt: string) => void;
+  disabled: boolean;
+}
+const cropOptions = [
+  { name: 'مربع 1:1', prompt: 'Crop the image to a 1:1 square aspect ratio, keeping the main subject perfectly centered.' },
+  { name: 'عريض 16:9', prompt: 'Crop the image to a 16:9 widescreen aspect ratio, focusing on the most visually interesting part of the scene.' },
+  { name: 'طولي 4:5', prompt: 'Crop the image to a 4:5 portrait aspect ratio, ideal for social media posts.' },
+];
+const filterOptions = [
+  { name: 'فينتاج', prompt: 'Apply a warm, vintage film filter to this image, with subtle grain and slightly faded colors.' },
+  { name: 'أبيض وأسود', prompt: 'Convert this image to a high-contrast, dramatic black and white photograph.' },
+  { name: 'ألوان زاهية', prompt: 'Enhance the vibrancy and saturation of the colors in this image to make it pop.' },
+  { name: 'تركيز ناعم', prompt: 'Apply a soft focus effect or a gentle blur to the background, making the main subject stand out more.' },
+];
+const EditButton: React.FC<{onClick: () => void, disabled: boolean, children: React.ReactNode}> = ({ onClick, disabled, children }) => (
+    <button
+        onClick={onClick}
+        disabled={disabled}
+        className="px-3 py-1.5 text-xs font-semibold text-white bg-black/40 backdrop-blur-sm border border-white/20 rounded-md hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+    >
+        {children}
+    </button>
+);
+const PostGenerationEditor: React.FC<PostGenerationEditorProps> = ({ onEdit, disabled }) => {
+  return (
+    <div className="w-full max-w-md p-3 bg-black/30 backdrop-blur-md rounded-lg border border-white/10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <h4 className="text-xs font-bold text-gray-300 mb-2 text-center sm:text-right">قص الصورة</h4>
+          <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+            {cropOptions.map(opt => (
+              <EditButton key={opt.name} onClick={() => onEdit(opt.prompt)} disabled={disabled}>
+                {opt.name}
+              </EditButton>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h4 className="text-xs font-bold text-gray-300 mb-2 text-center sm:text-right">فلاتر فنية</h4>
+          <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+            {filterOptions.map(opt => (
+              <EditButton key={opt.name} onClick={() => onEdit(opt.prompt)} disabled={disabled}>
+                {opt.name}
+              </EditButton>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>`;
-  fillGradeClassFilters('students');
-  const list=$('#stuList');
-  function renderList(rows){ list.innerHTML=''; rows.forEach(r=>{ const div=document.createElement('div'); div.className='list-item'; div.innerHTML=`<div><b>${r.full_name}</b> <span class="hint">— ${r.grade} / ${r.class}</span></div><div class="mono">${r.national_id}</div>`; div.onclick=()=>{ $('#s_nid').value=r.national_id; $('#s_name').value=r.full_name; $('#s_grade').value=r.grade; $('#s_class').value=r.class; $('#s_phone').value=r.guardian_phone||''; }; list.appendChild(div); }); if(!rows.length) list.innerHTML='<div class="list-item"><span class="hint">لا نتائج</span></div>'; }
-  function fetchAll(q='', g='', c=''){ let where='1=1'; if(q){ const qq='%'+q+'%'; where+=` AND (full_name LIKE ${sqlQuote(qq)} OR national_id LIKE ${sqlQuote(qq)})`; } if(g) where+=` AND grade=${sqlQuote(g)}`; if(c) where+=` AND class=${sqlQuote(c)}`; const rs=db.exec(`SELECT national_id, full_name, grade, class, guardian_phone FROM students WHERE ${where} ORDER BY full_name LIMIT 200`); const rows=rs.length? rs[0].values.map(v=>({national_id:v[0],full_name:v[1],grade:v[2],class:v[3],guardian_phone:v[4]})):[]; renderList(rows); }
-  $('#btnSearch').onclick=()=> fetchAll($('#q').value.trim(), $('#fGrade').value, $('#fClass').value);
-  $('#btnShowAll').onclick=()=>{ $('#q').value=''; $('#fGrade').value=''; $('#fClass').value=''; fetchAll(); };
-  $('#btnSaveStu').onclick=async()=>{ const nid=normalizeId($('#s_nid').value||''); if(!nid) return alert('أدخل الهوية'); const name=$('#s_name').value.trim(); const g=$('#s_grade').value.trim(); const c=$('#s_class').value.trim(); const phone=($('#s_phone').value||'').trim(); try{ exec(`INSERT INTO students(national_id, full_name, grade, class, guardian_phone) VALUES(${sqlQuote(nid)}, ${sqlQuote(name)}, ${sqlQuote(g)}, ${sqlQuote(c)}, ${sqlQuote(phone)})`); }catch(e){ if(String(e).includes('UNIQUE')){ exec(`UPDATE students SET full_name=${sqlQuote(name)}, grade=${sqlQuote(g)}, class=${sqlQuote(c)}, guardian_phone=${sqlQuote(phone)} WHERE national_id=${sqlQuote(nid)}`); } else{ throw e; } } await persistDB(); fetchAll($('#q').value.trim(), $('#fGrade').value, $('#fClass').value); updateStats(); toast('تم الحفظ'); };
-  $('#btnDeleteStu').onclick=async()=>{ const nid=normalizeId($('#s_nid').value||''); if(!nid) return alert('اختر طالبًا'); if(!confirm('حذف الطالب؟')) return; exec(`DELETE FROM students WHERE national_id=${sqlQuote(nid)}`); await persistDB(); fetchAll($('#q').value.trim(), $('#fGrade').value, $('#fClass').value); updateStats(); toast('تم الحذف'); };
-  fetchAll();
-}
-
-/* Reports */
-function renderReports(){
-  if(!_dbReady){ $('#reportsMount').textContent='بانتظار التهيئة…'; return; }
-  const today=todayRiyadh(); const ym=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit'}).format(new Date());
-  $('#reportsMount').innerHTML=`
-    <div class="row">
-      <button class="tab" id="tabDaily" aria-selected="true">يومي</button>
-      <button class="tab" id="tabMonthly">شهري</button>
-      <span><span>الصف</span> <select id="rGrade"><option value="">الكل</option></select></span>
-      <span><span>الفصل</span> <select id="rClass"><option value="">الكل</option></select></span>
     </div>
-    <div id="reportBody" style="margin-top:10px"></div>`;
-  $('#tabDaily').onclick=()=>select('daily'); $('#tabMonthly').onclick=()=>select('monthly'); fillGradeClassFilters('reports');
-  function select(kind){ $('#tabDaily').setAttribute('aria-selected', kind==='daily'); $('#tabMonthly').setAttribute('aria-selected', kind==='monthly'); if(kind==='daily') renderDaily(); else renderMonthly(); }
-  function filterWhere(){ const g=$('#rGrade').value, c=$('#rClass').value; let where='1=1'; if(g) where+=` AND s.grade=${sqlQuote(g)}`; if(c) where+=` AND s.class=${sqlQuote(c)}`; return where; }
-  function renderDaily(){ $('#reportBody').innerHTML=`<div class="row"><label>تاريخ</label><input type="date" id="repDate" value="${today}"><button class="btn" id="btnRefresh">تحديث</button><button class="btn" id="btnCSV">CSV</button><button class="btn primary no-print" id="btnPrint">طباعة</button></div><div class="history" style="margin-top:10px"><table><thead><tr><th>اليوم</th><th>الوقت</th><th>الاسم</th><th>الهوية</th><th>الصف</th><th>الفصل</th><th>الحالة</th><th>تأخر</th></tr></thead><tbody id="repBody"></tbody></table></div>`; const dateInput=$('#repDate'); function load(){ const like=dateInput.value+'%'; const where=filterWhere(); const rs=db.exec(`SELECT a.id,a.national_id,a.ts,a.status,a.late_minutes,s.full_name,s.grade,s.class FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where} ORDER BY a.ts ASC`); const rows=rs.length? rs[0].values.map(v=>({id:v[0],nid:v[1],ts:v[2],status:v[3],late:v[4],name:v[5],grade:v[6],class:v[7]})) : []; const body=$('#repBody'); body.innerHTML=''; rows.forEach((r,i)=>{ const tr=document.createElement('tr'); if(i===0) tr.classList.add('hl-green'); if(i===rows.length-1) tr.classList.add('hl-red'); tr.innerHTML=`<td>${weekdayNameFromISO(r.ts)}</td><td class="mono">${r.ts.slice(11,16)}</td><td>${r.name||'—'}</td><td class="mono">${r.nid}</td><td>${r.grade||'—'}</td><td>${r.class||'—'}</td><td>${r.status==='on_time'?'حاضر':'متأخر'}</td><td>${r.status==='late'?r.late:'—'}</td>`; body.appendChild(tr); }); } function exportCSV(){ const like=dateInput.value+'%'; const where=filterWhere(); const rs=db.exec(`SELECT a.ts,s.full_name,a.national_id,a.status,a.late_minutes,s.grade,s.class FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where} ORDER BY a.ts ASC`); const rows=rs.length? rs[0].values:[]; const header=['weekday','time','full_name','national_id','status','late_minutes','grade','class']; const csv=[header.join(',')].concat(rows.map(r=>{ const ts=String(r[0]??''); return [weekdayNameFromISO(ts), ts.slice(11,16), String(r[1]??''), String(r[2]??''), String(r[3]??''), String(r[4]??''), String(r[5]??''), String(r[6]??'')].join(','); })).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`hadir_${dateInput.value}.csv`; a.click(); URL.revokeObjectURL(a.href);} $('#btnRefresh').onclick=load; $('#btnCSV').onclick=exportCSV; $('#btnPrint').onclick=()=>window.print(); load(); }
-  function renderMonthly(){ $('#reportBody').innerHTML=`<div class="row"><label>الشهر</label><input type="month" id="repMonth" value="${ym}"><button class="btn" id="btnMRefresh">تحديث</button><button class="btn" id="btnMCSV">CSV</button></div><div class="history" style="margin-top:10px"><table><thead><tr><th>التاريخ</th><th>حضور</th><th>حاضر في الوقت</th><th>متأخر</th><th>نسبة حضور</th></tr></thead><tbody id="mBody"></tbody></table></div>`; function load(){ const month=$('#repMonth').value; const where=filterWhere(); const rsDays=db.exec(`SELECT DISTINCT substr(a.ts,1,10) d FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(month+'%')} AND ${where} ORDER BY d ASC`); const days=rsDays.length? rsDays[0].values.map(v=>v[0]):[]; const totalStudents=getStudentsCount(); const body=$('#mBody'); body.innerHTML=''; days.forEach(d=>{ const like=d+'%'; const rs=db.exec(`SELECT a.status FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where}`); const vals=rs.length? rs[0].values.map(v=>v[0]) : []; const presentUnique=db.exec(`SELECT COUNT(DISTINCT a.national_id) FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(like)} AND ${where}`)[0].values[0][0]; const ontime=vals.filter(s=>s==='on_time').length; const late=vals.filter(s=>s==='late').length; const pr= totalStudents? Math.round((presentUnique/totalStudents)*100) : 0; const tr=document.createElement('tr'); tr.innerHTML=`<td class="mono">${d}</td><td>${presentUnique}/${totalStudents}</td><td>${ontime}</td><td>${late}</td><td>${pr}%</td>`; body.appendChild(tr); }); } function exportCSV(){ const month=$('#repMonth').value; const where=filterWhere(); const rs=db.exec(`SELECT substr(a.ts,1,10) d, COUNT(*) c, SUM(CASE WHEN a.status='on_time' THEN 1 ELSE 0 END) ontime, SUM(CASE WHEN a.status='late' THEN 1 ELSE 0 END) late FROM attendance a LEFT JOIN students s ON s.national_id=a.national_id WHERE a.ts LIKE ${sqlQuote(month+'%')} AND ${where} GROUP BY d ORDER BY d ASC`); const rows=rs.length? rs[0].values:[]; const header=['date','count','on_time','late']; const csv=[header.join(',')].concat(rows.map(r=>r.map(x=>String(x??'')).join(','))).join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`hadir_month_${month}.csv`; a.click(); URL.revokeObjectURL(a.href);} $('#btnMRefresh').onclick=load; $('#btnMCSV').onclick=exportCSV; load(); }
-  select('daily');
+  );
+};
+
+// PromptControls.tsx
+interface PromptControlsProps {
+  prompt: string;
+  setPrompt: (value: string) => void;
+  onGenerateDescription: () => void;
+  isGeneratingDescription: boolean;
+  isImageUploaded: boolean;
+}
+const PromptControls: React.FC<PromptControlsProps> = ({
+  prompt,
+  setPrompt,
+  onGenerateDescription,
+  isGeneratingDescription,
+  isImageUploaded,
+}) => {
+  return (
+    <div>
+      <label htmlFor="prompt" className="block text-sm font-medium text-gray-300 mb-2">٢. صف المشهد المطلوب</label>
+      <div className="relative">
+        <textarea
+          id="prompt"
+          rows={4}
+          className="block w-full text-sm rounded-lg border bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500 p-2.5 ps-3 pe-28"
+          placeholder="مثال: لقطة احترافية على سطح من الرخام الأبيض مع إضاءة صباحية طبيعية وناعمة..."
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+        />
+        <button
+          onClick={onGenerateDescription}
+          disabled={!isImageUploaded || isGeneratingDescription}
+          className="absolute bottom-2.5 left-2.5 text-white bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:cursor-not-allowed focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-xs px-3 py-2 flex items-center gap-1"
+        >
+          {isGeneratingDescription ? (
+             <div className="w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+          ) : (
+            <SparklesIcon className="w-4 h-4" />
+          )}
+          <span>مساعدة AI</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ResultDisplay.tsx
+interface ResultDisplayProps {
+  isLoading: boolean;
+  generatedImage: string | null;
+  onGenerateHQ: () => void;
+  isEditing: boolean;
+  onEditImage: (prompt: string) => void;
+}
+const Spinner: React.FC = () => (
+  <div className="flex flex-col items-center justify-center gap-4">
+    <div className="w-16 h-16 border-4 border-dashed border-indigo-400 rounded-full animate-spin"></div>
+    <p className="text-lg text-gray-300">جاري إنشاء تحفتك الفنية...</p>
+    <p className="text-sm text-gray-500">قد يستغرق هذا بعض الوقت.</p>
+  </div>
+);
+const Placeholder: React.FC = () => (
+    <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-4">
+        <PhotoIcon className="w-24 h-24 mb-4" />
+        <h3 className="text-xl font-semibold text-gray-400">ستظهر صورتك الاحترافية هنا</h3>
+        <p className="mt-2 max-w-sm">ارفع صور منتجك، صف المشهد الذي تتخيله، ثم انقر على زر الإنشاء.</p>
+    </div>
+);
+const ResultDisplay: React.FC<ResultDisplayProps> = ({ isLoading, generatedImage, onGenerateHQ, isEditing, onEditImage }) => {
+  
+  const handleDownload = () => {
+    if (!generatedImage) return;
+    const link = document.createElement('a');
+    link.href = generatedImage;
+    link.download = `product-image-${Date.now()}.jpeg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+  return (
+    <div className="relative lg:sticky lg:top-8 flex items-center justify-center p-6 bg-gray-800/50 rounded-2xl aspect-square w-full border border-gray-700 min-h-[300px] lg:min-h-0">
+      {isLoading ? (
+        <Spinner />
+      ) : generatedImage ? (
+        <>
+          <img src={generatedImage} alt="Generated product" className="w-full h-full object-contain rounded-lg" />
+           {isEditing && (
+             <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10 rounded-2xl">
+                <div className="flex flex-col items-center justify-center gap-4">
+                    <div className="w-12 h-12 border-4 border-dashed border-cyan-400 rounded-full animate-spin"></div>
+                    <p className="text-lg text-gray-200">جاري تطبيق التعديلات...</p>
+                </div>
+            </div>
+          )}
+          <div className="absolute bottom-4 left-4 right-4 flex flex-col items-center gap-3">
+             <div className="flex justify-center items-center gap-3">
+                <button
+                onClick={handleDownload}
+                disabled={isEditing}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-black/50 backdrop-blur-sm border border-white/20 rounded-lg hover:bg-white/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                <DownloadIcon className="w-4 h-4" />
+                <span>حفظ الصورة</span>
+                </button>
+                <button
+                onClick={onGenerateHQ}
+                disabled={isEditing}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-indigo-600/80 backdrop-blur-sm border border-indigo-500/50 rounded-lg hover:bg-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                <DiamondIcon className="w-4 h-4" />
+                <span>إعادة إنشاء بجودة فائقة</span>
+                </button>
+             </div>
+            <PostGenerationEditor onEdit={onEditImage} disabled={isEditing || isLoading} />
+          </div>
+        </>
+      ) : (
+        <Placeholder />
+      )}
+    </div>
+  );
+};
+
+// SettingsModal.tsx
+interface SettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+  const [apiKey, setApiKey] = useState('');
+  const [isKeyVisible, setIsKeyVisible] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      const storedKey = localStorage.getItem(USER_API_KEY_STORAGE_KEY);
+      setApiKey(storedKey || '');
+      setSaved(false); // Reset saved status on open
+    }
+  }, [isOpen]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  const handleSave = () => {
+    if (apiKey.trim()) {
+      localStorage.setItem(USER_API_KEY_STORAGE_KEY, apiKey.trim());
+    } else {
+      localStorage.removeItem(USER_API_KEY_STORAGE_KEY);
+    }
+    setSaved(true);
+    setTimeout(() => {
+        onClose();
+    }, 1000); // Close modal after a short delay
+  };
+
+  const handleRemove = () => {
+    localStorage.removeItem(USER_API_KEY_STORAGE_KEY);
+    setApiKey('');
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8 border border-gray-700 w-full max-w-lg m-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-white">الإعدادات</h2>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white">
+            <CloseIcon className="w-6 h-6" />
+          </button>
+        </div>
+        
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="api-key" className="block text-sm font-medium text-gray-300 mb-2">
+              مفتاح Gemini API الخاص بك
+            </label>
+            <div className="relative">
+                <input
+                    id="api-key"
+                    type={isKeyVisible ? 'text' : 'password'}
+                    className="block w-full text-sm rounded-lg border bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500 p-2.5 ps-3 pe-10"
+                    placeholder="أدخل مفتاحك هنا..."
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                />
+                <button
+                    onClick={() => setIsKeyVisible(!isKeyVisible)}
+                    className="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-400 hover:text-white"
+                    aria-label={isKeyVisible ? "إخفاء المفتاح" : "إظهار المفتاح"}
+                >
+                    {isKeyVisible ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                </button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+                سيتم تخزين مفتاحك بأمان في متصفحك. 
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">
+                    {' '}احصل على مفتاح API من Google AI Studio.
+                </a>
+            </p>
+          </div>
+          
+          <div className="flex items-center justify-between gap-4">
+            <button
+                onClick={handleRemove}
+                disabled={!apiKey}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-gray-300 bg-gray-700/50 backdrop-blur-sm border border-gray-600 rounded-lg hover:bg-red-900/50 hover:border-red-700 hover:text-red-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                <TrashIcon className="w-4 h-4" />
+                <span>إزالة المفتاح</span>
+            </button>
+            <button
+                onClick={handleSave}
+                className={`px-6 py-2 text-sm font-semibold rounded-lg transition-colors ${saved ? 'bg-green-600' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+            >
+                {saved ? 'تم الحفظ!' : 'حفظ'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// StylePresets.tsx
+interface StylePresetsProps {
+  onSelect: (prompt: string) => void;
+}
+const styles = [
+  { name: 'سينمائي', prompt: 'لقطة سينمائية، إضاءة درامية، تباين عالٍ' },
+  { name: 'بسيط', prompt: 'أسلوب بسيط ونظيف، خلفية أحادية اللون' },
+  { name: 'حيوي', prompt: 'ألوان زاهية ومفعمة بالحيوية، إضاءة ساطعة' },
+  { name: 'غامض', prompt: 'أجواء غامضة، ظلال عميقة، إضاءة خافتة' },
+  { name: 'فاخر', prompt: 'مظهر فاخر وأنيق، تفاصيل ذهبية' },
+];
+const StylePresets: React.FC<StylePresetsProps> = ({ onSelect }) => {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-300 mb-2">٣. اختر نمطًا (اختياري)</label>
+      <div className="flex flex-wrap gap-2">
+        {styles.map((style) => (
+          <button
+            key={style.name}
+            onClick={() => onSelect(style.prompt)}
+            className="text-white bg-gray-600 hover:bg-gray-500 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-xs px-3 py-1.5 transition-colors"
+          >
+            {style.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// BackgroundGallery.tsx
+interface BackgroundGalleryProps {
+  onSelect: (prompt: string) => void;
+}
+const backgrounds = [
+  { name: 'سطح رخامي', prompt: 'المنتج على سطح من الرخام الأبيض الفاخر' },
+  { name: 'طاولة خشبية', prompt: 'المنتج على طاولة خشبية ريفية' },
+  { name: 'خلفية متدرجة', prompt: 'المنتج مع خلفية متدرجة بألوان الباستيل' },
+  { name: 'منصة حجرية', prompt: 'المنتج معروض على منصة حجرية طبيعية' },
+  { name: 'في الطبيعة', prompt: 'المنتج في الهواء الطلق مع خلفية طبيعية ضبابية' },
+];
+const BackgroundGallery: React.FC<BackgroundGalleryProps> = ({ onSelect }) => {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-300 mb-2">٤. اختر خلفية (اختياري)</label>
+      <div className="flex flex-wrap gap-2">
+        {backgrounds.map((bg) => (
+          <button
+            key={bg.name}
+            onClick={() => onSelect(bg.prompt)}
+            className="text-white bg-gray-600 hover:bg-gray-500 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-xs px-3 py-1.5 transition-colors"
+          >
+            {bg.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+
+// --- NEW LOGIN COMPONENT ---
+const LoginComponent: React.FC<{ onLoginSuccess: () => void }> = ({ onLoginSuccess }) => {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+
+    const handleLogin = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (username === 'Admin' && password === 'Admin') {
+            setError('');
+            onLoginSuccess();
+        } else {
+            setError('اسم المستخدم أو كلمة المرور غير صحيحة.');
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col justify-center items-center p-4">
+            <div className="w-full max-w-sm">
+                <div className="text-center mb-8">
+                    <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 text-transparent bg-clip-text">
+                        تسجيل الدخول
+                    </h1>
+                    <p className="text-gray-400 mt-2">
+                        للوصول إلى استوديو تصوير المنتجات
+                    </p>
+                </div>
+                <div className="bg-gray-800/50 p-8 rounded-2xl shadow-lg border border-gray-700">
+                    <form onSubmit={handleLogin} className="space-y-6">
+                        <div>
+                            <label
+                                htmlFor="username"
+                                className="block text-sm font-medium text-gray-300 mb-2"
+                            >
+                                اسم المستخدم
+                            </label>
+                            <input
+                                id="username"
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
+                                className="block w-full text-sm rounded-lg border bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                                placeholder="أدخل اسم المستخدم"
+                            />
+                        </div>
+                        <div>
+                            <label
+                                htmlFor="password"
+                                className="block text-sm font-medium text-gray-300 mb-2"
+                            >
+                                كلمة المرور
+                            </label>
+                            <input
+                                id="password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                className="block w-full text-sm rounded-lg border bg-gray-700 border-gray-600 placeholder-gray-400 text-white focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                                placeholder="••••••••"
+                            />
+                        </div>
+                        {error && (
+                            <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg text-sm">
+                                {error}
+                            </div>
+                        )}
+                        <button
+                            type="submit"
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-900/50 text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out shadow-indigo-500/30 shadow-md"
+                        >
+                            دخول
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN APP COMPONENT ---
+function App(): React.ReactElement {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [imageFiles, setImageFiles] = useState<ImageFile[]>([]);
+  const [prompt, setPrompt] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState<boolean>(false);
+  const [refinementState, setRefinementState] = useState<{ [key: string]: boolean }>({});
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [apiKeyStatus, setApiKeyStatus] = useState(isUsingUserApiKey());
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+  };
+
+  // Update API key status when settings modal is closed
+  const handleSettingsClose = () => {
+    setIsSettingsOpen(false);
+    setApiKeyStatus(isUsingUserApiKey());
+  };
+
+  const handleImageUpload = (newFiles: ImageFile[]) => {
+    setImageFiles(newFiles);
+  };
+  
+  const handleRefineImage = useCallback(async (
+    imageId: string, 
+    refinementType: 'remove-background' | 'enhance' | 'cleanup'
+  ) => {
+    const imageToRefine = imageFiles.find(img => img.id === imageId);
+    if (!imageToRefine) return;
+
+    setRefinementState(prev => ({ ...prev, [imageId]: true }));
+    setError(null);
+
+    let refinementPrompt = '';
+    switch (refinementType) {
+      case 'remove-background':
+        refinementPrompt = 'Isolate the main product from this image and make the background transparent. Return a PNG image with an alpha channel.';
+        break;
+      case 'enhance':
+        refinementPrompt = 'Professionally retouch this product photo. Enhance the lighting and color to make it look high-quality and vibrant, without changing the product itself.';
+        break;
+      case 'cleanup':
+        refinementPrompt = 'Subtly clean up this product image. Remove any small dust particles, scratches, or minor imperfections on the product and its immediate surroundings. Keep the changes natural.';
+        break;
+    }
+
+    try {
+      const refinedImageBase64 = await refineImage(imageToRefine.file, refinementPrompt);
+      const newFile = await base64ToFile(
+        `data:image/png;base64,${refinedImageBase64}`, 
+        `refined_${imageToRefine.file.name}`, 
+        'image/png'
+      );
+      
+      URL.revokeObjectURL(imageToRefine.preview);
+
+      const newImageFile: ImageFile = {
+        id: imageToRefine.id,
+        file: newFile,
+        preview: URL.createObjectURL(newFile),
+      };
+
+      setImageFiles(currentFiles =>
+        currentFiles.map(file => (file.id === imageId ? newImageFile : file))
+      );
+    } catch (e) {
+      console.error(e);
+      setError('فشل تحسين الصورة. قد لا يتمكن النموذج من معالجة الطلب أو أن مفتاح API غير صالح.');
+    } finally {
+      setRefinementState(prev => ({ ...prev, [imageId]: false }));
+    }
+  }, [imageFiles]);
+
+  const handleGenerateDescription = useCallback(async () => {
+    if (imageFiles.length === 0) {
+      setError('يرجى رفع صورة أولاً لإنشاء وصف.');
+      return;
+    }
+    setError(null);
+    setIsGeneratingDescription(true);
+    try {
+      const description = await generateDescriptionForImage(imageFiles[0].file);
+      setPrompt(description);
+    } catch (e) {
+      console.error(e);
+      setError('فشل في إنشاء الوصف. تأكد من صلاحية مفتاح API أو حاول مرة أخرى.');
+    } finally {
+      setIsGeneratingDescription(false);
+    }
+  }, [imageFiles]);
+
+  const handleSubmit = useCallback(async () => {
+    if (imageFiles.length === 0) {
+      setError('يرجى رفع صورة منتج واحدة على الأقل.');
+      return;
+    }
+    if (!prompt.trim()) {
+      setError('يرجى تقديم وصف للمشهد النهائي.');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+    setGeneratedImage(null);
+    try {
+      const files = imageFiles.map(img => img.file);
+      const newImage = await generateProductImage(files, prompt);
+      setGeneratedImage(`data:image/jpeg;base64,${newImage}`);
+    } catch (e) {
+      console.error(e);
+      setError('فشل في إنشاء الصورة. قد لا يتمكن النموذج من معالجة الطلب. يرجى تجربة وصف أو صور مختلفة، أو التأكد من صلاحية مفتاح API الخاص بك.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [imageFiles, prompt]);
+  
+  const handleGenerateHQ = useCallback(async () => {
+    if (imageFiles.length === 0 || !prompt.trim()) {
+      setError('لا يمكن تحسين الجودة بدون صور ووصف.');
+      return;
+    }
+    setError(null);
+    setIsLoading(true);
+
+    const enhancedPrompt = `${prompt.trim()}، جودة فائقة، واقعي جداً، تركيز حاد، 8k، تصوير احترافي`;
+
+    try {
+      const files = imageFiles.map(img => img.file);
+      const newImage = await generateProductImage(files, enhancedPrompt);
+      setGeneratedImage(`data:image/jpeg;base64,${newImage}`);
+    } catch (e) {
+      console.error(e);
+      setError('فشل في تحسين الصورة. يرجى المحاولة مرة أخرى أو التأكد من صلاحية مفتاح API.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [imageFiles, prompt]);
+
+  const handlePostGenerationEdit = useCallback(async (editPrompt: string) => {
+    if (!generatedImage) {
+      setError('لا توجد صورة لتعديلها.');
+      return;
+    }
+    setError(null);
+    setIsEditing(true);
+
+    try {
+      const imageFile = await base64ToFile(generatedImage, 'generated-image.jpeg', 'image/jpeg');
+      const editedImageBase64 = await refineImage(imageFile, editPrompt);
+      setGeneratedImage(`data:image/jpeg;base64,${editedImageBase64}`);
+    } catch (e) {
+      console.error(e);
+      setError('فشل تعديل الصورة. يرجى المحاولة مرة أخرى أو التأكد من صلاحية مفتاح API.');
+    } finally {
+      setIsEditing(false);
+    }
+  }, [generatedImage]);
+  
+  if (!isAuthenticated) {
+    return <LoginComponent onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col font-sans">
+      <Header onSettingsClick={() => setIsSettingsOpen(true)} />
+      <SettingsModal isOpen={isSettingsOpen} onClose={handleSettingsClose} />
+      <main className="flex-grow container mx-auto p-4 md:p-8 w-full">
+        {apiKeyStatus && (
+          <div className="mb-4 bg-blue-900/50 border border-blue-700 text-blue-300 px-4 py-2 rounded-lg text-xs text-center">
+            أنت تستخدم حاليًا مفتاح API المخصص.
+          </div>
+        )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          <div className="flex flex-col gap-6 p-6 bg-gray-800/50 rounded-2xl shadow-lg border border-gray-700">
+            <ImageUploader 
+              onUpload={handleImageUpload} 
+              maxFiles={5}
+              imageFiles={imageFiles}
+              onRefine={handleRefineImage}
+              refinementState={refinementState}
+            />
+            <PromptControls
+              prompt={prompt}
+              setPrompt={setPrompt}
+              onGenerateDescription={handleGenerateDescription}
+              isGeneratingDescription={isGeneratingDescription}
+              isImageUploaded={imageFiles.length > 0}
+            />
+            <StylePresets onSelect={(stylePrompt) => setPrompt(p => `${p.trim()} ${stylePrompt}`.trim())} />
+            <BackgroundGallery onSelect={(bgPrompt) => setPrompt(p => `${bgPrompt}. ${p}`.trim())} />
+            
+            {error && (
+              <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+            <button
+              onClick={handleSubmit}
+              disabled={isLoading || imageFiles.length === 0 || !prompt.trim()}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-900/50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-all duration-300 ease-in-out flex items-center justify-center text-lg shadow-indigo-500/30 shadow-md"
+            >
+              {isLoading ? 'جاري إنشاء المشهد...' : '✨ إنشاء مشهد احترافي'}
+            </button>
+          </div>
+          <ResultDisplay
+            isLoading={isLoading}
+            generatedImage={generatedImage}
+            onGenerateHQ={handleGenerateHQ}
+            isEditing={isEditing}
+            onEditImage={handlePostGenerationEdit}
+          />
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
 }
 
-/* Import */
-function renderImport(){
-  if(!_dbReady){ $('#importMount').textContent='بانتظار التهيئة…'; return; }
-  $('#importMount').innerHTML=`<div class="row"><input type="file" id="csvFile" accept=".csv,text/csv"/><button class="btn primary" id="btnImport">استيراد CSV</button><a class="btn" download="students_template.csv" href="students_template.csv">تحميل القالب</a></div><div class="divider"></div><h3>إضافة طالب يدويًا</h3><div class="grid-3"><div><label>الهوية</label><input id="i_nid"></div><div><label>الاسم</label><input id="i_name"></div><div><label>الصف</label><input id="i_grade"></div><div><label>الفصل</label><input id="i_class"></div><div><label>الجوال</label><input id="i_phone"></div><div style="align-self:end"><button class="btn primary" id="btnAdd">إضافة</button></div></div><pre id="importLog" class="mono" style="white-space:pre-wrap;margin-top:10px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:220px;overflow:auto"></pre>`;
-  $('#btnAdd').onclick=async()=>{ const nid=normalizeId($('#i_nid').value||''); if(!nid) return alert('أدخل الهوية'); const name=$('#i_name').value.trim(); const g=$('#i_grade').value.trim(); const c=$('#i_class').value.trim(); const p=($('#i_phone').value||'').trim(); try{ exec(`INSERT INTO students(national_id, full_name, grade, class, guardian_phone) VALUES(${sqlQuote(nid)}, ${sqlQuote(name)}, ${sqlQuote(g)}, ${sqlQuote(c)}, ${sqlQuote(p)})`); }catch(e){ if(String(e).includes('UNIQUE')) return alert('موجود مسبقًا'); else throw e; } await persistDB(); updateStats(); toast('تمت الإضافة'); };
-  $('#btnImport').onclick=async()=>{ const f=$('#csvFile').files?.[0]; if(!f) return alert('اختر ملفًا'); const text=await f.text(); const rep=importStudentsCSV(text); $('#importLog').textContent=rep; await persistDB(); updateStats(); };
+// --- RENDER APP ---
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
 }
-function detectDelimiter(s){ const c=(s.match(/,/g)||[]).length, sc=(s.match(/;/g)||[]).length; return sc>c?';':','; }
-function normalizeHeader(h){ if(!h) return ''; const x=h.trim().toLowerCase(); if(["رقم الهوية","رقم_الهوية","هوية","id","nid"].includes(x)) return 'national_id'; if(["الاسم","اسم","الاسم الكامل","full_name","name"].includes(x)) return 'full_name'; if(["الصف","grade","year"].includes(x)) return 'grade'; if(["الفصل","class","section"].includes(x)) return 'class'; if(["رقم ولي الأمر","guardian","guardian_phone","phone"].includes(x)) return 'guardian_phone'; return x; }
-function importStudentsCSV(csv){ let s=csv.replace(/^\uFEFF/, ''); const lines=s.split(/\r?\n/).filter(Boolean); if(!lines.length) return '⚠️ ملف فارغ'; const delim=detectDelimiter(lines[0]); const headers=lines[0].split(delim).map(normalizeHeader); const idx={ national_id:headers.indexOf('national_id'), full_name:headers.indexOf('full_name'), grade:headers.indexOf('grade'), class:headers.indexOf('class'), guardian_phone:headers.indexOf('guardian_phone'), }; if(idx.national_id<0||idx.full_name<0||idx.grade<0||idx.class<0) return '❌ الأعمدة المطلوبة ناقصة'; let ok=0,dup=0,bad=0; const stmt=db.prepare(`INSERT INTO students(national_id, full_name, grade, class, guardian_phone) VALUES(?,?,?,?,?)`); db.exec('BEGIN'); for(let i=1;i<lines.length;i++){ const row=lines[i].split(delim); const nid=normalizeId(row[idx.national_id]||''); if(!nid){bad++; continue;} const name=(row[idx.full_name]||'').trim(); const g=(row[idx.grade]||'').trim(); const c=(row[idx.class]||'').trim(); const p=idx.guardian_phone>=0?String(row[idx.guardian_phone]).trim():''; try{ stmt.run([nid,name,g,c,p]); ok++; }catch(e){ if(String(e).includes('UNIQUE')) dup++; else { bad++; } } } db.exec('COMMIT'); stmt.free(); return `تم الاستيراد\nالمقبول:${ok}\nمكرر:${dup}\nمرفوض:${bad}`; }
 
-/* Codes */
-async function ensureBarcodeLibs(){ if(typeof window.JsBarcode!=='function'){ try{ await loadScript('./lib/JsBarcode.all.min.js'); }catch(e){ await loadScript('https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js'); } } if(typeof window.QRCode==='undefined'){ try{ await loadScript('./lib/qrcode.min.js'); }catch(e){ await loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js'); } } }
-function renderCodes(){ if(!_dbReady){ $('#codesMount').textContent='بانتظار التهيئة…'; return; } $('#codesMount').innerHTML=`<div class="row"><label>نوع</label><select id="codeType"><option value="code128">Code128</option><option value="qr">QR</option><option value="both">كلاهما</option></select><span>الصف</span><select id="cGrade"><option value="">الكل</option></select><span>الفصل</span><select id="cClass"><option value="">الكل</option></select><button class="btn primary" id="btnGen">توليد</button><button class="btn" id="btnPrintCodes">طباعة</button></div><div class="divider"></div><div id="codesArea" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px"></div>`; fillGradeClassFilters('codes'); $('#btnPrintCodes').onclick=()=>window.print(); $('#btnGen').onclick=async()=>{ await ensureBarcodeLibs(); const area=$('#codesArea'); area.innerHTML=''; const g=$('#cGrade').value, c=$('#cClass').value; let where='1=1'; if(g) where+=` AND grade=${sqlQuote(g)}`; if(c) where+=` AND class=${sqlQuote(c)}`; const rs=db.exec(`SELECT national_id, full_name, grade, class FROM students WHERE ${where} ORDER BY full_name`); const rows=rs.length? rs[0].values.map(v=>({nid:v[0],name:v[1],grade:v[2],class:v[3]})) : []; if(!rows.length){ area.innerHTML='<div class="hint">لا طلاب</div>'; return; } const type=$('#codeType').value; const grid=document.createElement('div'); grid.style.display='grid'; grid.style.gridTemplateColumns='1fr 1fr 1fr'; grid.style.gap='12px'; rows.forEach(r=>{ const card=document.createElement('div'); card.style.border='1px solid var(--border)'; card.style.borderRadius='12px'; card.style.padding='10px'; card.innerHTML=`<div style="font-weight:700">${r.name}</div><div class="hint">${r.grade} / ${r.class}</div><div class="mono">${r.nid}</div>`; if(type==='code128'||type==='both'){ const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','barcode'); svg.setAttribute('jsbarcode-value', r.nid); svg.setAttribute('jsbarcode-displayValue','false'); svg.style.width='100%'; svg.style.height='60px'; card.appendChild(svg); } if(type==='qr'||type==='both'){ const div=document.createElement('div'); div.style.width='80px'; div.style.height='80px'; card.appendChild(div); new QRCode(div, { text: r.nid, width: 80, height: 80 }); } grid.appendChild(card); }); area.appendChild(grid); if(typeof window.JsBarcode==='function'){ JsBarcode(".barcode").init(); } toast('تم توليد الأكواد'); }; }
-
-/* Backup */
-function renderBackup(){ if(!_dbReady){ $('#backupMount').textContent='بانتظار التهيئة…'; return; } $('#backupMount').innerHTML=`<div class="row"><button class="btn primary" id="btnExportDB">تنزيل ملف القاعدة</button><input type="file" id="dbFile" accept=".db,.sqlite,.bin,application/octet-stream"/><button class="btn" id="btnRestore">استعادة</button></div>`; $('#btnExportDB').onclick=exportDBFile; $('#btnRestore').onclick=restoreDBFile; }
-async function exportDBFile(){ await persistDB(); const data=await idbGet(DB_FILE_KEY); if(!data){ alert('لا توجد قاعدة'); return;} const blob=new Blob([data],{type:'application/octet-stream'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`hadir_${new Date().toISOString().slice(0,10)}.sqlite`; a.click(); URL.revokeObjectURL(a.href); localStorage.setItem('lastBackupAt', new Date().toISOString()); updateStats(); }
-async function restoreDBFile(){ const f=$('#dbFile').files?.[0]; if(!f){ alert('اختر ملف'); return;} const buf=new Uint8Array(await f.arrayBuffer()); await idbPut(DB_FILE_KEY, buf); db?.close?.(); db=new SQL.Database(buf); updateStats(); alert('تمت الاستعادة'); }
-
-/* Settings */
-function renderSettings(){ if(!_dbReady){ $('#settingsMount').textContent='بانتظار التهيئة…'; return; } const s=readSettings(); const hh=s?.assembly_hour??7, mm=s?.assembly_minute??0, grace=s?.grace_minutes??5; const timeStr=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`; const dedupe=s?.dedupe_seconds??60; const sound=(s?.sound_enabled??1)?1:0; const school=s?.school_name??''; const principal=s?.principal_name??''; $('#settingsMount').innerHTML=`<div class="grid-3"><div><label>وقت الطابور</label><input type="time" id="assemblyTime" value="${timeStr}"></div><div><label>وقت السماح</label><input type="number" id="grace" value="${grace}"></div><div><label>منع التكرار (ث)</label><input type="number" id="dedupe" value="${dedupe}"></div><div><label>الصوت</label><select id="sound"><option value="1" ${sound?'selected':''}>مفعل</option><option value="0" ${!sound?'selected':''}>متوقف</option></select></div><div><label>اسم المدرسة</label><input id="school" value="${school}"></div><div><label>اسم المدير</label><input id="principal" value="${principal}"></div></div><div class="row" style="margin-top:10px"><button class="btn primary" id="btnSave">حفظ</button></div>`; $('#btnSave').onclick=async()=>{ const t=$('#assemblyTime').value||'07:00'; const [H,M]=t.split(':').map(n=>parseInt(n,10)); const g=parseInt($('#grace').value||'0',10); const dsec=Math.max(0, parseInt($('#dedupe').value||'60',10)); const snd=parseInt($('#sound').value,10); const sc=$('#school').value.trim(); const pr=$('#principal').value.trim(); exec(`UPDATE settings SET assembly_hour=${H}, assembly_minute=${M}, grace_minutes=${g}, school_name=${sqlQuote(sc)}, principal_name=${sqlQuote(pr)}, dedupe_seconds=${dsec}, sound_enabled=${snd} WHERE id=1`); await persistDB(); updateHeaderFromSettings(); toast('تم الحفظ'); }; }
-
-/* Shared helpers */
-function fillGradeClassFilters(scope){ const rsG=db.exec('SELECT DISTINCT grade FROM students WHERE grade IS NOT NULL AND TRIM(grade)<>"" ORDER BY grade'); const rsC=db.exec('SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND TRIM(class)<>"" ORDER BY class'); const grades=rsG.length? rsG[0].values.map(v=>v[0]):[]; const classes=rsC.length? rsC[0].values.map(v=>v[0]):[]; if(scope==='students' || scope==='reports' || scope==='codes'){ const gSel=scope==='students'?'#fGrade':(scope==='reports'?'#rGrade':'#cGrade'); const cSel=scope==='students'?'#fClass':(scope==='reports'?'#rClass':'#cClass'); const g=$(gSel), c=$(cSel); if(g){ g.innerHTML='<option value="">كل الصفوف</option>'+grades.map(x=>`<option>${x}</option>`).join(''); } if(c){ c.innerHTML='<option value="">كل الفصول</option>'+classes.map(x=>`<option>${x}</option>`).join(''); } } }
-function addTodayListItem({name,nid,status}){ const list=$('#todayList'); const div=document.createElement('div'); div.className='list-item'; div.innerHTML=`<div>${name||'—'} <span class="hint">(${status==='on_time'?'حاضر':'متأخر'})</span></div><div class="mono">${nid}</div>`; list.prepend(div); if(list.children.length>80){ list.removeChild(list.lastChild); } }
-
-/* Stats/Footer/Test */
-function updateStats(){ const s1=$('#statStudents'), s2=$('#statSettings'), s3=$('#statBackup'); if(!s1) return; s1.textContent=getStudentsCount(); s2.textContent= readSettings()? 'نعم':'لا'; const last=localStorage.getItem('lastBackupAt'); s3.textContent= last ? new Date(last).toLocaleString('ar-SA') : '—'; }
-function updateHeaderFromSettings(){ const s=readSettings(); if(!s) return; $('#schoolName').textContent=s.school_name||'—'; $('#principalName').textContent=s.principal_name?('مدير المدرسة: '+s.principal_name):'—'; }
-function updateFooter(){ const parts=new Intl.DateTimeFormat('ar-SA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit'}).formatToParts(new Date()); const Y=parts.find(p=>p.type==='year')?.value||''; const M=parts.find(p=>p.type==='month')?.value||''; $('#footer').textContent = `حاضر • الإصدار 7.0 • تطوير أ.هيثم الزهراني • ${Y}/${M}`; }
-function testDB(){ try{ db.exec(`CREATE TABLE IF NOT EXISTS demo(t TEXT); DELETE FROM demo; INSERT INTO demo(t) VALUES('hello'),('world');`); const r=db.exec(`SELECT t FROM demo ORDER BY t ASC`); alert('DB OK: '+ (r[0]?.values?.map(v=>v[0]).join(', ')||'(no rows)')); }catch(e){ alert('DB test failed: '+e.message); } }
-
-/* Boot */
-document.addEventListener('DOMContentLoaded', async ()=>{
-  updateFooter(); $('#btnTestDB').onclick=testDB; showPanel('attendance'); $('#attnClock').textContent=dmLine();
-  try{
-    diag('typeof initSqlJs: '+(typeof window.initSqlJs));
-    await initSQL(); updateHeaderFromSettings(); updateStats(); renderAttendance();
-  }catch(e){ diag('❌ تعذّر البدء: '+e.message); alert('تعذّر البدء: '+e.message); }
-});
-</script>
-</body>
-</html>
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
