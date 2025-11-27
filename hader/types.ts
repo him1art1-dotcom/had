@@ -74,6 +74,7 @@ export interface ViolationRecord {
   created_at: string;
 }
 
+// التحديث: إضافة الأنواع الجديدة (command, announcement) والجمهور (kiosk)
 export interface Notification {
   id: string;
   title?: string;
@@ -82,19 +83,20 @@ export interface Notification {
   target_audience: 'guardian' | 'all' | 'class' | 'student' | 'admin' | 'supervisor' | 'kiosk';
   target_id?: string;
   created_at: string;
-  isPopup?: boolean; // تم إضافة هذا الحقل لحل المشكلة
+  isPopup?: boolean;
 }
 
+// التحديث: إضافة خصائص شاشة التوقف والصور
 export interface KioskSettings {
   mainTitle: string;
   subTitle: string;
   earlyMessage: string;
   lateMessage: string;
   showStats: boolean;
-  headerImage?: string;
-  screensaverEnabled?: boolean;
-  screensaverTimeout?: number;
-  screensaverImages?: string[];
+  headerImage?: string;           // تم الإضافة
+  screensaverEnabled?: boolean;   // تم الإضافة
+  screensaverTimeout?: number;    // تم الإضافة
+  screensaverImages?: string[];   // تم الإضافة
 }
 
 export interface SystemSettings {
@@ -104,10 +106,12 @@ export interface SystemSettings {
   logoUrl: string;
   mode?: 'dark' | 'light';
   theme?: AppTheme;
+  
   schoolName?: string;
   schoolManager?: string;
   assemblyTime?: string;
   gracePeriod?: number;
+  
   kiosk?: KioskSettings;
 }
 
