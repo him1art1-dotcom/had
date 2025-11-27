@@ -1,3 +1,4 @@
+// src/types.ts
 
 export enum Role {
   SITE_ADMIN = 'site_admin',
@@ -5,44 +6,62 @@ export enum Role {
   SUPERVISOR_GLOBAL = 'supervisor_global',
   SUPERVISOR_CLASS = 'supervisor_class',
   WATCHER = 'watcher',
-  GUARDIAN = 'guardian',
-}
-
-export interface ClassAssignment {
-  className: string; // اسم الصف (مثال: أول ثانوي)
-  sections: string[]; // الفصول المسندة (مثال: ['أ', 'ج']). مصفوفة فارغة تعني كل الفصول.
+  GUARDIAN = 'guardian'
 }
 
 export interface User {
   id: string;
   username: string;
-  password?: string; // stored plainly for demo purposes only
   name: string;
   role: Role;
-  assignedClasses?: ClassAssignment[]; // التحديث هنا: هيكلة جديدة للإسناد
+  password?: string;
+  assignedClasses?: ClassAssignment[];
+}
+
+export interface ClassAssignment {
+  className: string;
+  sections: string[];
 }
 
 export interface Student {
-  id: string; // The generated ID (المعرف)
+  id: string;
   name: string;
   className: string;
   section: string;
   guardianPhone: string;
 }
 
+export interface SchoolClass {
+  id: string;
+  name: string;
+  sections: string[];
+}
+
 export interface AttendanceRecord {
   id: string;
   studentId: string;
-  date: string; // YYYY-MM-DD
-  timestamp: string; // ISO string
-  status: 'present' | 'late' | 'absent' | 'excused';
+  date: string;
+  timestamp: string;
+  status: 'present' | 'late' | 'absent';
+}
+
+export interface AttendanceScanResult {
+  success: boolean;
+  message: string;
+  record?: AttendanceRecord;
+  student?: Student;
+  stats?: {
+      lateCount: number;
+      minutesLateToday: number;
+      totalMinutesLate: number;
+  };
 }
 
 export interface ExitRecord {
   id: string;
   studentId: string;
   reason: string;
-  exit_time: string; // ISO string
+  exit_time: string;
   created_by?: string;
 }
 
@@ -50,64 +69,52 @@ export interface ViolationRecord {
   id: string;
   studentId: string;
   type: string;
-  description: string; // Mapped from 'notes' in app logic if needed, or sql 'description'
-  level: 'low' | 'medium' | 'high';
+  level: string;
+  description: string;
   created_at: string;
 }
 
+// تم تحديث هذا النوع ليشمل الأنواع الجديدة (command, announcement)
 export interface Notification {
   id: string;
+  title?: string;
   message: string;
-  target_audience: 'all' | 'class' | 'student' | 'admin' | 'supervisor' | 'guardian';
-  target_id?: string; // ID of student or class name
-  type: 'behavior' | 'attendance' | 'general';
+  type: 'behavior' | 'attendance' | 'general' | 'command' | 'announcement';
+  target_audience: 'guardian' | 'all' | 'class' | 'student' | 'admin' | 'supervisor' | 'kiosk';
+  target_id?: string;
   created_at: string;
-  title?: string; // Optional helper for UI
 }
 
-export interface DashboardStats {
-    totalStudents: number;
-    presentCount: number;
-    absentCount: number;
-    lateCount: number;
-    attendanceRate: number;
+// تم تحديث إعدادات الكشك لتشمل الخصائص الجديدة
+export interface KioskSettings {
+  mainTitle: string;
+  subTitle: string;
+  earlyMessage: string;
+  lateMessage: string;
+  showStats: boolean;
+  // الحقول الجديدة:
+  headerImage?: string;
+  screensaverEnabled?: boolean;
+  screensaverTimeout?: number;
+  screensaverImages?: string[];
 }
 
-export interface ReportFilter {
-    dateFrom: string;
-    dateTo: string;
-    className?: string;
-    section?: string;
+export interface SystemSettings {
+  id?: number;
+  systemReady: boolean;
+  schoolActive: boolean;
+  logoUrl: string;
+  mode?: 'dark' | 'light';
+  theme?: AppTheme;
+  
+  schoolName?: string;
+  schoolManager?: string;
+  assemblyTime?: string;
+  gracePeriod?: number;
+  
+  kiosk?: KioskSettings;
 }
 
-export interface DailySummary {
-    id?: string;
-    date_summary: string;
-    summary_data: {
-        stats: {
-            total: number;
-            present: number;
-            late: number;
-            absent: number;
-        };
-        details: {
-            present: { id: string; name: string }[];
-            late: { id: string; name: string }[];
-            absent: { id: string; name: string }[];
-        };
-        shared_by: string;
-        shared_at: string;
-    };
-}
-
-// Structure Management
-export interface SchoolClass {
-  id: string;
-  name: string; // e.g. "الصف الأول الثانوي"
-  sections: string[]; // e.g. ["أ", "ب", "ج"]
-}
-
-// New Types for Support & Diagnostics
 export interface AppTheme {
   primary400: string;
   primary500: string;
@@ -117,60 +124,44 @@ export interface AppTheme {
   secondary600: string;
 }
 
-export interface KioskSettings {
-    mainTitle: string;
-    subTitle: string;
-    earlyMessage: string;
-    lateMessage: string;
-    showStats: boolean; // New toggle
+export interface DashboardStats {
+  totalStudents: number;
+  presentCount: number;
+  lateCount: number;
+  absentCount: number;
+  attendanceRate: number;
 }
 
-export interface SystemSettings {
-    systemReady: boolean;
-    schoolActive: boolean;
-    logoUrl: string;
-    theme?: AppTheme;
-    mode?: 'dark' | 'light';
-    kiosk?: KioskSettings;
-    
-    // School Settings
-    schoolName?: string;
-    schoolManager?: string;
-    assemblyTime?: string; // HH:mm (24 hour format)
-    gracePeriod?: number; // minutes
+export interface ReportFilter {
+  dateFrom: string;
+  dateTo: string;
+  className: string;
+  section: string;
+}
+
+export interface DailySummary {
+  date_summary: string;
+  summary_data: any;
 }
 
 export interface DiagnosticResult {
-    key: string;
-    title: string;
-    status: 'ok' | 'warning' | 'error';
-    message: string;
-    hint?: string;
-    count?: number;
-}
-
-export interface AttendanceScanResult {
-    success: boolean;
-    message: string;
-    record?: AttendanceRecord;
-    student?: Student;
-    stats?: {
-        lateCount: number;
-        minutesLateToday: number;
-        totalMinutesLate: number;
-    }
+  key: string;
+  title: string;
+  status: 'ok' | 'warning' | 'error';
+  message: string;
+  count?: number;
+  hint?: string;
 }
 
 export const STORAGE_KEYS = {
-  SESSION: 'hader:session',
-  THEME: 'hader:theme',
-  STUDENTS: 'hader:students',
-  USERS: 'hader:users',
-  ATTENDANCE: 'hader:attendance',
-  EXITS: 'hader:exits',
-  VIOLATIONS: 'hader:violations',
-  NOTIFICATIONS: 'hader:notifications',
-  DAILY_SHARE: 'hader:daily-share', // prefix
-  SETTINGS: 'hader:settings',
-  CLASSES: 'hader:classes', 
+  SESSION: 'hader_session',
+  STUDENTS: 'hader_students',
+  ATTENDANCE: 'hader_attendance',
+  EXITS: 'hader_exits',
+  VIOLATIONS: 'hader_violations',
+  NOTIFICATIONS: 'hader_notifications',
+  USERS: 'hader_users',
+  CLASSES: 'hader_classes',
+  SETTINGS: 'hader_settings',
+  DAILY_SHARE: 'hader_daily_share'
 };
