@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, Menu, Shield, Users, Clock, LayoutDashboard, Settings, UserCircle, Activity, X, Bell, Info, Megaphone, AlertTriangle } from 'lucide-react';
+import { LogOut, Menu, Shield, Users, Clock, LayoutDashboard, Settings, UserCircle, Activity, X, Bell, Info } from 'lucide-react';
 import { Role, User, Notification, SystemSettings } from '../types';
 import { db } from '../services/db';
 
@@ -27,7 +27,6 @@ const Layout: React.FC<LayoutProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [settings, setSettings] = useState<SystemSettings | null>(null);
-  const [popupNotification, setPopupNotification] = useState<Notification | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const navigate = useNavigate();
@@ -35,19 +34,7 @@ const Layout: React.FC<LayoutProps> = ({
 
   useEffect(() => {
     db.getSettings().then(setSettings);
-  }, [location]); // Refresh settings on navigation to keep status updated
-
-  // Watch for new announcements (Popups)
-  useEffect(() => {
-      if (notifications.length > 0) {
-          const latest = notifications[0];
-          // Check if it's a popup/announcement and hasn't been seen in this session (simple check)
-          if ((latest.type === 'announcement' || latest.isPopup) && sessionStorage.getItem(`seen_popup_${latest.id}`) !== 'true') {
-              setPopupNotification(latest);
-              sessionStorage.setItem(`seen_popup_${latest.id}`, 'true');
-          }
-      }
-  }, [notifications]);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -87,34 +74,8 @@ const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row text-gray-100">
-      
-      {/* System Not Ready Warning Banner (Visible to Admins Only) */}
-      {settings && !settings.systemReady && (user.role === Role.SCHOOL_ADMIN || user.role === Role.SITE_ADMIN) && (
-          <div className="fixed top-0 left-0 w-full bg-amber-600/90 backdrop-blur-sm text-white z-[100] py-2 px-4 text-center shadow-lg flex items-center justify-center gap-2 text-sm font-bold border-b border-amber-400/50">
-              <AlertTriangle className="w-4 h-4" />
-              تنبيه: حالة النظام "غير جاهز". يرجى مراجعة الدعم الفني للتحقق من الإعدادات.
-          </div>
-      )}
-
-      {/* Popup Announcement Modal */}
-      {popupNotification && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-              <div className="glass-card max-w-md w-full p-8 rounded-3xl border border-primary-500/50 shadow-[0_0_50px_rgba(124,58,237,0.3)] relative text-center">
-                  <button onClick={() => setPopupNotification(null)} className="absolute top-4 left-4 text-gray-400 hover:text-white"><X className="w-6 h-6" /></button>
-                  <div className="w-20 h-20 bg-gradient-to-br from-primary-500 to-secondary-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                      <Megaphone className="w-10 h-10 text-white animate-pulse" />
-                  </div>
-                  <h2 className="text-2xl font-bold font-serif text-white mb-4">{popupNotification.title || 'إعلان هام'}</h2>
-                  <p className="text-gray-300 leading-relaxed mb-8 text-lg">{popupNotification.message}</p>
-                  <button onClick={() => setPopupNotification(null)} className="px-8 py-3 bg-white text-primary-900 font-bold rounded-xl hover:bg-gray-100 transition-colors w-full">
-                      علم
-                  </button>
-              </div>
-          </div>
-      )}
-
       {/* Mobile Header */}
-      <div className={`md:hidden glass p-4 flex justify-between items-center z-20 border-b border-white/10 sticky ${settings && !settings.systemReady && (user.role === Role.SCHOOL_ADMIN || user.role === Role.SITE_ADMIN) ? 'top-9' : 'top-0'}`}>
+      <div className="md:hidden glass p-4 flex justify-between items-center z-20 border-b border-white/10 sticky top-0">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold font-serif text-white text-glow">حاضر</h1>
           <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'}`} title={isConnected ? 'متصل' : 'غير متصل'}></div>
@@ -140,7 +101,7 @@ const Layout: React.FC<LayoutProps> = ({
 
       {/* Notification Dropdown (Shared for Mobile/Desktop relative logic tricky, using absolute positioning) */}
       {notifOpen && (
-          <div ref={notifRef} className={`fixed right-4 md:right-auto md:left-20 z-50 w-80 glass-card rounded-2xl border border-white/10 shadow-2xl overflow-hidden animate-fade-in-up ${settings && !settings.systemReady && (user.role === Role.SCHOOL_ADMIN || user.role === Role.SITE_ADMIN) ? 'top-24' : 'top-16'}`}>
+          <div ref={notifRef} className="fixed top-16 right-4 md:right-auto md:left-20 z-50 w-80 glass-card rounded-2xl border border-white/10 shadow-2xl overflow-hidden animate-fade-in-up">
               <div className="p-3 border-b border-white/10 bg-black/20 flex justify-between items-center">
                   <h3 className="font-bold text-white text-sm">الإشعارات</h3>
                   <button onClick={() => setNotifOpen(false)} className="text-gray-400 hover:text-white"><X className="w-4 h-4"/></button>
@@ -154,10 +115,10 @@ const Layout: React.FC<LayoutProps> = ({
                   ) : (
                       <div className="divide-y divide-white/5">
                           {notifications.map((n, i) => (
-                              <div key={i} className={`p-3 hover:bg-white/5 transition-colors ${n.type === 'announcement' ? 'bg-primary-500/5 border-l-2 border-primary-500' : ''}`}>
+                              <div key={i} className="p-3 hover:bg-white/5 transition-colors">
                                   <div className="flex items-start gap-3">
-                                      <div className={`p-2 rounded-full ${n.type === 'behavior' ? 'bg-red-500/10 text-red-400' : n.type === 'announcement' ? 'bg-primary-500/10 text-primary-400' : 'bg-blue-500/10 text-blue-400'}`}>
-                                          {n.type === 'announcement' ? <Megaphone className="w-4 h-4" /> : <Info className="w-4 h-4" />}
+                                      <div className={`p-2 rounded-full ${n.type === 'behavior' ? 'bg-red-500/10 text-red-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                          <Info className="w-4 h-4" />
                                       </div>
                                       <div>
                                           <h4 className="text-sm font-bold text-gray-200">{n.title || 'تنبيه جديد'}</h4>
@@ -179,7 +140,6 @@ const Layout: React.FC<LayoutProps> = ({
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} 
         md:translate-x-0 md:static md:inset-auto md:flex md:flex-col
         border-l border-white/5
-        ${settings && !settings.systemReady && (user.role === Role.SCHOOL_ADMIN || user.role === Role.SITE_ADMIN) ? 'mt-8 md:mt-0' : ''}
       `}>
         <div className="p-8 border-b border-white/5 relative">
           <button 
@@ -274,7 +234,7 @@ const Layout: React.FC<LayoutProps> = ({
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-1 overflow-y-auto p-4 md:p-8 relative z-10 scroll-smooth ${settings && !settings.systemReady && (user.role === Role.SCHOOL_ADMIN || user.role === Role.SITE_ADMIN) ? 'pt-12' : ''}`}>
+      <main className="flex-1 overflow-y-auto p-4 md:p-8 relative z-10 scroll-smooth">
         {children}
       </main>
 

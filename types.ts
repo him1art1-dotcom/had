@@ -9,21 +9,21 @@ export enum Role {
 }
 
 export interface ClassAssignment {
-  className: string; 
-  sections: string[]; 
+  className: string; // اسم الصف (مثال: أول ثانوي)
+  sections: string[]; // الفصول المسندة (مثال: ['أ', 'ج']). مصفوفة فارغة تعني كل الفصول.
 }
 
 export interface User {
   id: string;
   username: string;
-  password?: string;
+  password?: string; // stored plainly for demo purposes only
   name: string;
   role: Role;
-  assignedClasses?: ClassAssignment[];
+  assignedClasses?: ClassAssignment[]; // التحديث هنا: هيكلة جديدة للإسناد
 }
 
 export interface Student {
-  id: string;
+  id: string; // The generated ID (المعرف)
   name: string;
   className: string;
   section: string;
@@ -33,8 +33,8 @@ export interface Student {
 export interface AttendanceRecord {
   id: string;
   studentId: string;
-  date: string;
-  timestamp: string;
+  date: string; // YYYY-MM-DD
+  timestamp: string; // ISO string
   status: 'present' | 'late' | 'absent' | 'excused';
 }
 
@@ -42,7 +42,7 @@ export interface ExitRecord {
   id: string;
   studentId: string;
   reason: string;
-  exit_time: string;
+  exit_time: string; // ISO string
   created_by?: string;
 }
 
@@ -50,7 +50,7 @@ export interface ViolationRecord {
   id: string;
   studentId: string;
   type: string;
-  description: string;
+  description: string; // Mapped from 'notes' in app logic if needed, or sql 'description'
   level: 'low' | 'medium' | 'high';
   created_at: string;
 }
@@ -58,12 +58,11 @@ export interface ViolationRecord {
 export interface Notification {
   id: string;
   message: string;
-  target_audience: 'all' | 'class' | 'student' | 'admin' | 'supervisor' | 'guardian' | 'kiosk';
-  target_id?: string;
-  type: 'behavior' | 'attendance' | 'general' | 'announcement' | 'command';
-  isPopup?: boolean; // New: Determines if it shows as a modal
+  target_audience: 'all' | 'class' | 'student' | 'admin' | 'supervisor' | 'guardian';
+  target_id?: string; // ID of student or class name
+  type: 'behavior' | 'attendance' | 'general';
   created_at: string;
-  title?: string;
+  title?: string; // Optional helper for UI
 }
 
 export interface DashboardStats {
@@ -101,12 +100,14 @@ export interface DailySummary {
     };
 }
 
+// Structure Management
 export interface SchoolClass {
   id: string;
-  name: string;
-  sections: string[];
+  name: string; // e.g. "الصف الأول الثانوي"
+  sections: string[]; // e.g. ["أ", "ب", "ج"]
 }
 
+// New Types for Support & Diagnostics
 export interface AppTheme {
   primary400: string;
   primary500: string;
@@ -121,11 +122,7 @@ export interface KioskSettings {
     subTitle: string;
     earlyMessage: string;
     lateMessage: string;
-    showStats: boolean;
-    headerImage?: string; // Base64 or URL
-    screensaverEnabled?: boolean;
-    screensaverTimeout?: number; // in minutes
-    screensaverImages?: string[]; // Array of Base64 or URLs
+    showStats: boolean; // New toggle
 }
 
 export interface SystemSettings {
@@ -135,10 +132,12 @@ export interface SystemSettings {
     theme?: AppTheme;
     mode?: 'dark' | 'light';
     kiosk?: KioskSettings;
+    
+    // School Settings
     schoolName?: string;
     schoolManager?: string;
-    assemblyTime?: string;
-    gracePeriod?: number;
+    assemblyTime?: string; // HH:mm (24 hour format)
+    gracePeriod?: number; // minutes
 }
 
 export interface DiagnosticResult {
@@ -171,7 +170,7 @@ export const STORAGE_KEYS = {
   EXITS: 'hader:exits',
   VIOLATIONS: 'hader:violations',
   NOTIFICATIONS: 'hader:notifications',
-  DAILY_SHARE: 'hader:daily-share',
+  DAILY_SHARE: 'hader:daily-share', // prefix
   SETTINGS: 'hader:settings',
   CLASSES: 'hader:classes', 
 };

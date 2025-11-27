@@ -2,6 +2,7 @@
 import { supabase } from './supabase';
 import { User, Role, STORAGE_KEYS } from '../types';
 import { db } from './db'; // Access db to check mode
+import { hashPassword, isHashed } from './security';
 
 export const auth = {
   /**
@@ -32,31 +33,26 @@ export const auth = {
       // LOCAL MODE LOGIC
       // ---------------------------------------------------------
       if (mode === 'local') {
+          const hashedInput = await hashPassword(password);
+
           // 1. Try to find user in stored local users (Created via Admin Panel)
           if (type === 'staff') {
               const localUsers = await db.getUsers();
-              const found = localUsers.find(u => u.username === username && u.password === password);
+              const normalizedUsers = await Promise.all(localUsers.map(async (u) => ({
+                  ...u,
+                  password: u.password ? await hashPassword(u.password) : '',
+              })));
+
+              const found = normalizedUsers.find(u => u.username === username && u.password === hashedInput);
               if (found) {
+                  // Backfill hashed password if it was previously plaintext
+                  const original = localUsers.find(u => u.id === found.id);
+                  if (original && original.password && !isHashed(original.password)) {
+                      await db.saveUser({ ...found, password: found.password });
+                  }
                   this.setSession(found);
                   return { success: true, user: found };
               }
-          }
-
-          // 2. Fallback to Hardcoded Demo Credentials (if not found in storage)
-          if (type === 'staff' && username === 'admin' && password === 'admin123') {
-             const user: User = { id: 'local-admin', username, name: 'مدير النظام (محلي)', role: Role.SITE_ADMIN };
-             this.setSession(user);
-             return { success: true, user };
-          }
-          if (type === 'staff' && username === 'watcher' && password === '123') {
-             const user: User = { id: 'local-watcher', username, name: 'المراقب (محلي)', role: Role.WATCHER };
-             this.setSession(user);
-             return { success: true, user };
-          }
-          if (type === 'staff' && username === 'tech' && password === 'tech123') {
-             const user: User = { id: 'local-tech', username, name: 'الدعم الفني', role: Role.SITE_ADMIN };
-             this.setSession(user);
-             return { success: true, user };
           }
 
           // Mock Guardian
@@ -81,7 +77,20 @@ export const auth = {
       if (type === 'staff') {
         const { data, error } = await supabase.from('users').select('*').eq('username', username).single();
         if (error || !data) return { success: false, message: 'اسم المستخدم غير موجود' };
-        if (data.password !== password) return { success: false, message: 'كلمة المرور غير صحيحة' };
+
+        const hashedInput = await hashPassword(password);
+        const storedPassword: string | undefined = data.password || undefined;
+
+        const passwordMatches = isHashed(storedPassword)
+            ? storedPassword === hashedInput
+            : storedPassword === password;
+
+        if (!passwordMatches) return { success: false, message: 'كلمة المرور غير صحيحة' };
+
+        // Upgrade legacy plaintext passwords to hashed storage once validated
+        if (storedPassword && !isHashed(storedPassword)) {
+            await db.saveUser({ id: data.id, username: data.username, name: data.full_name, role: data.role, password: hashedInput });
+        }
 
         const user: User = { id: data.id, username: data.username, name: data.full_name, role: data.role as Role };
         this.setSession(user);
