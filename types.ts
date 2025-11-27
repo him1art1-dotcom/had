@@ -74,7 +74,7 @@ export interface ViolationRecord {
   created_at: string;
 }
 
-// تم تحديث هذا النوع ليشمل الأنواع الجديدة (command, announcement)
+// التحديث 1: إضافة الأنواع الجديدة للإشعارات (command, announcement) والجمهور (kiosk)
 export interface Notification {
   id: string;
   title?: string;
@@ -85,18 +85,17 @@ export interface Notification {
   created_at: string;
 }
 
-// تم تحديث إعدادات الكشك لتشمل الخصائص الجديدة
+// التحديث 2: إضافة خصائص شاشة التوقف وصورة الهيدر
 export interface KioskSettings {
   mainTitle: string;
   subTitle: string;
   earlyMessage: string;
   lateMessage: string;
   showStats: boolean;
-  // الحقول الجديدة:
-  headerImage?: string;
-  screensaverEnabled?: boolean;
-  screensaverTimeout?: number;
-  screensaverImages?: string[];
+  headerImage?: string;           // جديد
+  screensaverEnabled?: boolean;   // جديد
+  screensaverTimeout?: number;    // جديد
+  screensaverImages?: string[];   // جديد
 }
 
 export interface SystemSettings {
