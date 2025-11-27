@@ -1,6 +1,7 @@
-import { supabase, supabaseConfigured } from './supabase';
+// src/services/db.ts
+
+import { supabase } from './supabase';
 import { Student, AttendanceRecord, ExitRecord, ViolationRecord, Notification, DashboardStats, ReportFilter, DailySummary, STORAGE_KEYS, SystemSettings, DiagnosticResult, Role, SchoolClass, User, AppTheme, AttendanceScanResult } from '../types';
-import { hashPassword, isHashed } from './security';
 
 // Configuration
 export type StorageMode = 'cloud' | 'local';
@@ -13,21 +14,15 @@ export const getLocalISODate = (): string => {
     return new Date(now.getTime() - offset).toISOString().split('T')[0];
 };
 
-// Helper to calculate minutes late based on dynamic settings
 const calculateMinutesLate = (timestamp: string, assemblyTime: string = "07:00", gracePeriod: number = 0): number => {
     const date = new Date(timestamp);
     const [h, m] = assemblyTime.split(':').map(Number);
-    
-    // Set target to assembly time of that day
     const target = new Date(date);
     target.setHours(h, m, 0, 0);
-    
-    // Add grace period to determine if late
     const cutoff = new Date(target);
     cutoff.setMinutes(cutoff.getMinutes() + gracePeriod);
 
     if (date > cutoff) {
-        // Late calculation is based on difference from Assembly Time (not cutoff)
         const diffMs = date.getTime() - target.getTime();
         const diffMins = Math.floor(diffMs / 60000);
         return diffMins > 0 ? diffMins : 0;
@@ -36,7 +31,7 @@ const calculateMinutesLate = (timestamp: string, assemblyTime: string = "07:00",
 };
 
 // ------------------------------------------------------------------
-// 1. Interface Definition (The Contract)
+// 1. Interface Definition (The Contract) - UPDATED HERE
 // ------------------------------------------------------------------
 interface IDatabaseProvider {
   getStudents(): Promise<Student[]>;
@@ -68,9 +63,9 @@ interface IDatabaseProvider {
   
   saveNotification(notification: Notification): Promise<void>;
   getStudentNotifications(studentId: string, className: string): Promise<Notification[]>;
-  subscribeToNotifications(user: User, callback: (notification: Notification) => void): { unsubscribe: () => void };
+  // FIX APPLIED BELOW: Added | 'kiosk'
+  subscribeToNotifications(user: User | 'kiosk', callback: (notification: Notification) => void): { unsubscribe: () => void };
 
-  // Structure & Users
   getClasses(): Promise<SchoolClass[]>;
   saveClass(schoolClass: SchoolClass): Promise<void>;
   deleteClass(classId: string): Promise<void>;
@@ -79,7 +74,6 @@ interface IDatabaseProvider {
   saveUser(user: User): Promise<void>;
   deleteUser(userId: string): Promise<void>;
 
-  // Support Extensions
   getSettings(): Promise<SystemSettings>;
   saveSettings(settings: SystemSettings): Promise<void>;
   sendBroadcast(targetRole: string, message: string, title: string): Promise<void>;
@@ -158,7 +152,6 @@ class CloudProvider implements IDatabaseProvider {
         const now = new Date();
         const today = getLocalISODate();
 
-        // Fetch Settings for time calculation
         const { data: settingsData } = await supabase.from('settings').select('*').single();
         const settings: SystemSettings = settingsData as SystemSettings || { 
             systemReady: true,
@@ -170,7 +163,6 @@ class CloudProvider implements IDatabaseProvider {
         const assemblyTime = settings.assemblyTime || '07:00';
         const gracePeriod = settings.gracePeriod || 0;
 
-        // Calculate Status
         const minutesLate = calculateMinutesLate(now.toISOString(), assemblyTime, gracePeriod);
         const isLate = minutesLate > 0;
         
@@ -185,15 +177,10 @@ class CloudProvider implements IDatabaseProvider {
             return { success: false, message: 'حدث خطأ أثناء التسجيل' };
         }
 
-        // Calculate Stats
         const { data: history } = await supabase.from('attendance_logs').select('*').eq('student_id', id);
         const allLogs = (history || []).map(mapAttendance);
-        
         const lateLogs = allLogs.filter(l => l.status === 'late');
         const lateCount = lateLogs.length;
-        
-        // Recalculate late minutes for history based on current settings might be inaccurate for past days, 
-        // but typically we'd store minutes_late in DB. For now, re-calc.
         const totalMinutesLate = lateLogs.reduce((acc, curr) => acc + calculateMinutesLate(curr.timestamp, assemblyTime, 0), 0);
 
         return { 
@@ -337,29 +324,7 @@ class CloudProvider implements IDatabaseProvider {
       return data.map((d: any) => ({ id: d.id, message: d.message, target_audience: d.target_audience, target_id: d.target_id, type: d.type, created_at: d.created_at }));
   }
 
-  subscribeToNotifications(user: User, callback: (notification: Notification) => void): { unsubscribe: () => void } {
-      const guardianScope = { studentIds: new Set<string>(), classNames: new Set<string>() };
-
-      if (user.role === Role.GUARDIAN) {
-          this.getStudentsByGuardian(user.username).then(students => {
-              students.forEach(s => {
-                  guardianScope.studentIds.add(String(s.id));
-                  guardianScope.classNames.add(s.className);
-              });
-          }).catch(err => console.warn('Failed to load guardian scope', err));
-      }
-
-      const matchesGuardianScope = (targetId?: string) => {
-          if (user.role !== Role.GUARDIAN || !targetId) return false;
-          return guardianScope.studentIds.has(String(targetId)) || guardianScope.classNames.has(String(targetId));
-      };
-
-      const matchesSupervisorScope = (targetId?: string) => {
-          if (user.role === Role.SUPERVISOR_GLOBAL) return true;
-          if (user.role !== Role.SUPERVISOR_CLASS || !user.assignedClasses || !targetId) return false;
-          return user.assignedClasses.some(c => c.className === targetId || c.sections.includes(targetId));
-      };
-
+  subscribeToNotifications(user: User | 'kiosk', callback: (notification: Notification) => void): { unsubscribe: () => void } {
       const subscription = supabase
         .channel('notifications_realtime')
         .on(
@@ -368,14 +333,15 @@ class CloudProvider implements IDatabaseProvider {
           (payload) => {
             if (payload.new) {
               const n = payload.new;
-
-              const relevant =
-                n.target_audience === 'all' ||
-                (n.target_audience === 'admin' && (user.role === Role.SITE_ADMIN || user.role === Role.SCHOOL_ADMIN)) ||
-                (n.target_audience === 'supervisor' && matchesSupervisorScope(n.target_id)) ||
-                (n.target_audience === 'guardian' && matchesGuardianScope(n.target_id)) ||
-                (n.target_audience === 'class' && (matchesGuardianScope(n.target_id) || matchesSupervisorScope(n.target_id))) ||
-                (n.target_audience === 'student' && matchesGuardianScope(n.target_id));
+              let relevant = false;
+              if (user === 'kiosk') {
+                  if (n.target_audience === 'kiosk') relevant = true;
+              } else {
+                  if (n.target_audience === 'all') relevant = true;
+                  if (n.target_audience === 'admin' && (user.role === Role.SITE_ADMIN || user.role === Role.SCHOOL_ADMIN)) relevant = true;
+                  if (n.target_audience === 'supervisor' && (user.role === Role.SUPERVISOR_GLOBAL || user.role === Role.SUPERVISOR_CLASS)) relevant = true;
+                  if (n.target_audience === 'guardian' && user.role === Role.GUARDIAN) relevant = true;
+              }
 
               if (relevant) {
                   callback({
@@ -399,7 +365,6 @@ class CloudProvider implements IDatabaseProvider {
       };
   }
 
-  // --- Structure & Users (Cloud) ---
   async getClasses(): Promise<SchoolClass[]> {
     try {
         const { data } = await supabase.from('classes').select('*');
@@ -421,28 +386,29 @@ class CloudProvider implements IDatabaseProvider {
   }
 
   async saveUser(user: User): Promise<void> {
-    const normalizedPassword = user.password ? await hashPassword(user.password) : undefined;
-    await supabase.from('users').upsert({
-        id: user.id,
-        username: user.username,
-        full_name: user.name,
-        role: user.role,
-        password: normalizedPassword,
-    });
+    await supabase.from('users').upsert({ id: user.id, username: user.username, full_name: user.name, role: user.role, password: user.password });
   }
 
   async deleteUser(userId: string): Promise<void> {
     await supabase.from('users').delete().eq('id', userId);
   }
 
-
-  // Support Extensions (Cloud)
   async getSettings(): Promise<SystemSettings> {
     const { data } = await supabase.from('settings').select('*').single();
     if (data) return data as SystemSettings;
     return { 
         systemReady: true, schoolActive: true, logoUrl: '', mode: 'dark',
-        schoolName: 'مدرسة المستقبل', schoolManager: 'أ. محمد العلي', assemblyTime: '07:00', gracePeriod: 0
+        schoolName: 'مدرسة المستقبل', schoolManager: 'أ. محمد العلي', assemblyTime: '07:00', gracePeriod: 0,
+        kiosk: { 
+            mainTitle: 'تسجيل الحضور', 
+            subTitle: 'يرجى تمرير البطاقة أو إدخال المعرف', 
+            earlyMessage: 'شكراً لالتزامك بالحضور المبكر', 
+            lateMessage: 'نأمل منك الحرص على الحضور مبكراً', 
+            showStats: true,
+            screensaverEnabled: false,
+            screensaverTimeout: 2,
+            screensaverImages: []
+        }
     };
   }
 
@@ -458,7 +424,7 @@ class CloudProvider implements IDatabaseProvider {
          id: '',
          title: title,
          message: message,
-         type: 'general',
+         type: targetRole === 'kiosk' ? 'command' : 'general',
          target_audience: targetRole as any,
          created_at: new Date().toISOString()
      };
@@ -519,12 +485,9 @@ class CloudProvider implements IDatabaseProvider {
 // ------------------------------------------------------------------
 class LocalProvider implements IDatabaseProvider {
   private listeners: (() => void)[] = [];
-  private legacyMigration?: Promise<void>;
   
   constructor() {
     this.seed();
-    // Normalize any legacy plaintext passwords without blocking startup
-    this.migrateLegacyUsers();
   }
 
   private seed() {
@@ -542,7 +505,16 @@ class LocalProvider implements IDatabaseProvider {
             schoolActive: true, 
             logoUrl: '', 
             mode: 'dark',
-            kiosk: { mainTitle: 'تسجيل الحضور', subTitle: 'يرجى تمرير البطاقة أو إدخال المعرف', earlyMessage: 'شكراً لالتزامك بالحضور المبكر', lateMessage: 'نأمل منك الحرص على الحضور مبكراً', showStats: true },
+            kiosk: { 
+                mainTitle: 'تسجيل الحضور', 
+                subTitle: 'يرجى تمرير البطاقة أو إدخال المعرف', 
+                earlyMessage: 'شكراً لالتزامك بالحضور المبكر', 
+                lateMessage: 'نأمل منك الحرص على الحضور مبكراً', 
+                showStats: true,
+                screensaverEnabled: true,
+                screensaverTimeout: 2,
+                screensaverImages: []
+            },
             schoolName: 'مدرسة المستقبل النموذجية',
             schoolManager: 'أ. محمد العلي',
             assemblyTime: '07:00',
@@ -556,6 +528,14 @@ class LocalProvider implements IDatabaseProvider {
         ];
         localStorage.setItem(STORAGE_KEYS.CLASSES, JSON.stringify(dummyClasses));
     }
+    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+        const dummyUsers: User[] = [
+            { id: 'local-admin', username: 'admin', password: '123', name: 'مدير النظام', role: Role.SITE_ADMIN },
+            { id: 'local-watcher', username: 'watcher', password: '123', name: 'المراقب', role: Role.WATCHER },
+            { id: 'local-tech', username: 'tech', password: '123', name: 'الدعم الفني', role: Role.SITE_ADMIN }
+        ];
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(dummyUsers));
+    }
     if (!localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS)) {
         localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
     }
@@ -568,32 +548,6 @@ class LocalProvider implements IDatabaseProvider {
 
   private set<T>(key: string, data: T[]): void {
     localStorage.setItem(key, JSON.stringify(data));
-  }
-
-  private async migrateLegacyUsers() {
-    if (this.legacyMigration) return this.legacyMigration;
-
-    this.legacyMigration = (async () => {
-        const existing = this.get<User>(STORAGE_KEYS.USERS);
-        let updated = false;
-
-        const normalized = [] as User[];
-        for (const user of existing) {
-            if (user.password && !isHashed(user.password)) {
-                const hashed = await hashPassword(user.password);
-                normalized.push({ ...user, password: hashed });
-                updated = true;
-            } else {
-                normalized.push(user);
-            }
-        }
-
-        if (updated) {
-            this.set(STORAGE_KEYS.USERS, normalized);
-        }
-    })();
-
-    return this.legacyMigration;
   }
 
   private notifyListeners() {
@@ -645,7 +599,6 @@ class LocalProvider implements IDatabaseProvider {
     const exists = allLogs.find(l => l.studentId === id && l.date === today);
     if (exists) return Promise.resolve({ success: false, message: 'تم تسجيل الدخول مسبقاً لهذا اليوم' });
 
-    // Fetch Settings
     const settings = await this.getSettings();
     const assemblyTime = settings.assemblyTime || '07:00';
     const gracePeriod = settings.gracePeriod || 0;
@@ -671,11 +624,9 @@ class LocalProvider implements IDatabaseProvider {
         newValue: JSON.stringify(updatedLogs)
     }));
 
-    // Stats Calculation (Local)
     const studentLogs = updatedLogs.filter(l => l.studentId === id);
     const lateLogs = studentLogs.filter(l => l.status === 'late');
     const lateCount = lateLogs.length;
-    
     const totalMinutesLate = lateLogs.reduce((acc, curr) => acc + calculateMinutesLate(curr.timestamp, assemblyTime, 0), 0);
 
     return Promise.resolve({ 
@@ -839,58 +790,36 @@ class LocalProvider implements IDatabaseProvider {
       return Promise.resolve(filtered);
   }
 
-    subscribeToNotifications(user: User, callback: (notification: Notification) => void): { unsubscribe: () => void } {
-        const guardianScope = { studentIds: new Set<string>(), classNames: new Set<string>() };
+  subscribeToNotifications(user: User | 'kiosk', callback: (notification: Notification) => void): { unsubscribe: () => void } {
+      const checkRelevance = (n: Notification): boolean => {
+          if (user === 'kiosk') {
+              return n.target_audience === 'kiosk';
+          }
+          if (n.target_audience === 'all') return true;
+          if (n.target_audience === 'admin' && (user.role === Role.SITE_ADMIN || user.role === Role.SCHOOL_ADMIN)) return true;
+          if (n.target_audience === 'supervisor' && (user.role === Role.SUPERVISOR_GLOBAL || user.role === Role.SUPERVISOR_CLASS)) return true;
+          if (n.target_audience === 'guardian' && user.role === Role.GUARDIAN) return true;
+          return false;
+      }
 
-        if (user.role === Role.GUARDIAN) {
-            this.getStudentsByGuardian(user.username).then(students => {
-                students.forEach(s => {
-                    guardianScope.studentIds.add(String(s.id));
-                    guardianScope.classNames.add(s.className);
-                });
-            }).catch(err => console.warn('Failed to load guardian scope (local)', err));
-        }
+      const storageListener = (e: StorageEvent) => {
+          if (e.key === STORAGE_KEYS.NOTIFICATIONS && e.newValue) {
+              const newNotifs = JSON.parse(e.newValue) as Notification[];
+              const lastNotif = newNotifs[newNotifs.length - 1];
+              if (lastNotif && checkRelevance(lastNotif)) {
+                  callback(lastNotif);
+              }
+          }
+      };
+      window.addEventListener('storage', storageListener);
+      
+      return { 
+          unsubscribe: () => {
+              window.removeEventListener('storage', storageListener);
+          }
+      };
+  }
 
-        const matchesGuardianScope = (targetId?: string) => {
-            if (user.role !== Role.GUARDIAN || !targetId) return false;
-            return guardianScope.studentIds.has(String(targetId)) || guardianScope.classNames.has(String(targetId));
-        };
-
-        const matchesSupervisorScope = (targetId?: string) => {
-            if (user.role === Role.SUPERVISOR_GLOBAL) return true;
-            if (user.role !== Role.SUPERVISOR_CLASS || !user.assignedClasses || !targetId) return false;
-            return user.assignedClasses.some(c => c.className === targetId || c.sections.includes(targetId));
-        };
-
-        const checkRelevance = (n: Notification): boolean => {
-            if (n.target_audience === 'all') return true;
-            if (n.target_audience === 'admin' && (user.role === Role.SITE_ADMIN || user.role === Role.SCHOOL_ADMIN)) return true;
-            if (n.target_audience === 'supervisor' && matchesSupervisorScope(n.target_id)) return true;
-            if (n.target_audience === 'class' && (matchesGuardianScope(n.target_id) || matchesSupervisorScope(n.target_id))) return true;
-            if (n.target_audience === 'guardian' && matchesGuardianScope(n.target_id)) return true;
-            if (n.target_audience === 'student' && matchesGuardianScope(n.target_id)) return true;
-            return false;
-        };
-
-        const storageListener = (e: StorageEvent) => {
-            if (e.key === STORAGE_KEYS.NOTIFICATIONS && e.newValue) {
-                const newNotifs = JSON.parse(e.newValue) as Notification[];
-                const lastNotif = newNotifs[newNotifs.length - 1];
-                if (lastNotif && checkRelevance(lastNotif)) {
-                    callback(lastNotif);
-                }
-            }
-        };
-        window.addEventListener('storage', storageListener);
-
-        return {
-            unsubscribe: () => {
-                window.removeEventListener('storage', storageListener);
-            }
-        };
-    }
-
-  // --- Structure & Users (Local) ---
   async getClasses(): Promise<SchoolClass[]> {
     return Promise.resolve(this.get<SchoolClass>(STORAGE_KEYS.CLASSES));
   }
@@ -906,14 +835,11 @@ class LocalProvider implements IDatabaseProvider {
   }
 
   async getUsers(): Promise<User[]> {
-      await this.migrateLegacyUsers();
       return Promise.resolve(this.get<User>(STORAGE_KEYS.USERS));
   }
   async saveUser(user: User): Promise<void> {
-      await this.migrateLegacyUsers();
       const list = this.get<User>(STORAGE_KEYS.USERS).filter(u => u.id !== user.id);
-      const normalizedPassword = user.password ? await hashPassword(user.password) : undefined;
-      this.set(STORAGE_KEYS.USERS, [...list, { ...user, password: normalizedPassword }]);
+      this.set(STORAGE_KEYS.USERS, [...list, user]);
       return Promise.resolve();
   }
   async deleteUser(userId: string): Promise<void> {
@@ -922,13 +848,21 @@ class LocalProvider implements IDatabaseProvider {
       return Promise.resolve();
   }
 
-
-  // Support Extensions (Local)
   async getSettings(): Promise<SystemSettings> {
     const item = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     return Promise.resolve(item ? JSON.parse(item) : { 
         systemReady: true, schoolActive: true, logoUrl: '', mode: 'dark',
-        schoolName: 'مدرسة المستقبل', schoolManager: 'أ. محمد العلي', assemblyTime: '07:00', gracePeriod: 0
+        schoolName: 'مدرسة المستقبل', schoolManager: 'أ. محمد العلي', assemblyTime: '07:00', gracePeriod: 0,
+        kiosk: { 
+            mainTitle: 'تسجيل الحضور', 
+            subTitle: 'يرجى تمرير البطاقة أو إدخال المعرف', 
+            earlyMessage: 'شكراً لالتزامك بالحضور المبكر', 
+            lateMessage: 'نأمل منك الحرص على الحضور مبكراً', 
+            showStats: true,
+            screensaverEnabled: true,
+            screensaverTimeout: 2,
+            screensaverImages: []
+        }
     });
   }
 
@@ -942,7 +876,7 @@ class LocalProvider implements IDatabaseProvider {
          id: Math.random().toString(),
          title: title,
          message: message,
-         type: 'general',
+         type: targetRole === 'kiosk' ? 'command' : 'general',
          target_audience: targetRole as any,
          created_at: new Date().toISOString()
      };
@@ -995,14 +929,9 @@ class Database implements IDatabaseProvider {
 
   constructor() {
     const storedMode = localStorage.getItem(CONFIG_KEY) as StorageMode;
-    const autoMode = supabaseConfigured ? 'cloud' : 'local';
-    this.mode = storedMode || autoMode;
-
-    if (this.mode === 'cloud' && !supabaseConfigured) {
-        console.warn('Supabase is not configured; reverting to local mode.');
-        this.mode = 'local';
-    }
-
+    // Set to 'cloud' as default
+    this.mode = storedMode || 'cloud';
+    
     console.log(`Initializing Database in [${this.mode.toUpperCase()}] mode.`);
     
     if (this.mode === 'cloud') {
@@ -1022,11 +951,6 @@ class Database implements IDatabaseProvider {
   }
 
   setMode(mode: StorageMode) {
-      if (mode === 'cloud' && !supabaseConfigured) {
-          alert('لا يمكن تفعيل الوضع السحابي: مفاتيح Supabase غير مضبوطة. يرجى إضافة VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY.');
-          return;
-      }
-
       localStorage.setItem(CONFIG_KEY, mode);
       window.location.reload();
   }
@@ -1073,7 +997,7 @@ class Database implements IDatabaseProvider {
   getTodayViolations() { return this.provider.getTodayViolations(); }
   saveNotification(n: Notification) { return this.provider.saveNotification(n); }
   getStudentNotifications(id: string, c: string) { return this.provider.getStudentNotifications(id, c); }
-  subscribeToNotifications(user: User, callback: (n: Notification) => void) { return this.provider.subscribeToNotifications(user, callback); }
+  subscribeToNotifications(user: User | 'kiosk', callback: (n: Notification) => void) { return this.provider.subscribeToNotifications(user, callback); }
 
   getClasses() { return this.provider.getClasses(); }
   saveClass(c: SchoolClass) { return this.provider.saveClass(c); }
